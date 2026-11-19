@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f4c5c">
+<link rel="icon" href="../icon-192.png">
+<title>Panel de Inventario</title>
+<style>
+:root{--pri:#0f4c5c;--pri2:#16697a;--bg:#f2f5f7;--card:#fff;--tx:#1d2731;--mut:#66727e;--ok:#1e8e3e;--bad:#c62828;--warn:#a86500;--sob:#1565c0;--br:#dde3e8;--soft:#f7f9fa}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--pri);color:#fff;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header b{font-size:17px}header .sp{flex:1}
+header nav{display:flex;gap:4px}
+header nav button{background:none;border:0;color:#cfe3e8;font-weight:600;font-size:14px;padding:8px 12px;border-radius:8px;cursor:pointer}
+header nav button.on{background:rgba(255,255,255,.16);color:#fff}
+.who{font-size:12px;opacity:.85}
+main{max-width:1280px;margin:0 auto;padding:18px 16px 60px}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.card h2{margin:0 0 10px;font-size:16px;color:var(--pri)}
+.mut{color:var(--mut);font-size:12.5px}
+input,select{padding:9px 10px;border:1px solid var(--br);border-radius:8px;font-size:14px;background:#fff;color:var(--tx);font-family:inherit}
+label.f{display:block;font-size:12px;color:var(--mut);margin:8px 0 3px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:8px;padding:9px 13px;font-size:13.5px;font-weight:600;background:var(--pri);color:#fff;cursor:pointer;white-space:nowrap}
+.btn.sec{background:#e6eef1;color:var(--pri)}.btn.danger{background:#fdecec;color:var(--bad)}.btn.sm{padding:6px 9px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--soft);border-radius:10px;padding:10px 12px}.kpi b{display:block;font-size:20px;color:var(--pri)}.kpi span{font-size:12px;color:var(--mut)}
+.kpi.bad b{color:var(--bad)}.kpi.sob b{color:var(--sob)}.kpi.ok b{color:var(--ok)}.kpi.warn b{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11.5px;color:var(--mut);font-weight:600;padding:7px 8px;border-bottom:2px solid var(--br);background:var(--card);position:sticky;top:0}
+td{padding:7px 8px;border-bottom:1px solid #edf1f4;vertical-align:top}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer}tr.click:hover td{background:#f5f9fa}
+.tw{overflow:auto;max-height:65vh;border:1px solid var(--br);border-radius:10px}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:#e6eef1;color:var(--pri)}
+.tag.ok{background:#eaf6ed;color:var(--ok)}.tag.bad{background:#fdeded;color:var(--bad)}.tag.sob{background:#eaf1fc;color:var(--sob)}.tag.warn{background:#fff6e6;color:var(--warn)}.tag.cerr{background:#fdeded;color:var(--bad)}
+.neg{color:var(--bad);font-weight:700}.pos{color:var(--sob);font-weight:700}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.chips button{border:1px solid var(--br);background:#fff;border-radius:20px;padding:5px 11px;font-size:12.5px;cursor:pointer;color:var(--tx)}
+.chips button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+#login{max-width:360px;margin:12vh auto}
+#login input{width:100%;margin-bottom:8px;font-size:15px;padding:11px}
+.perms label{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:5px 0}
+.perms input{margin-top:3px}
+dialog{border:0;border-radius:14px;padding:0;max-width:620px;width:94vw;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+dialog .hd{background:var(--pri);color:#fff;padding:13px 16px;font-weight:700}
+dialog .bd{padding:14px 16px;max-height:70vh;overflow:auto}
+dialog .ft{padding:12px 16px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--br)}
+dialog input:not([type=checkbox]),dialog select{width:100%}
+.perms input[type=checkbox]{width:auto;flex:0 0 auto}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(120px);background:#1d2731;color:#fff;padding:11px 16px;border-radius:10px;font-size:13.5px;transition:transform .25s;z-index:99;max-width:92vw}
+#toast.show{transform:translateX(-50%) translateY(0)}
+.back{cursor:pointer;color:var(--pri);font-weight:600;font-size:13px;margin-bottom:8px;display:inline-block}
+@media (max-width:640px){header{padding:10px 12px}main{padding:12px 10px}.hide-m{display:none}}
+</style>
+</head>
+<body>
+<div id="login" class="card" hidden>
+  <h2>Panel de Inventario</h2>
+  <div class="mut" style="margin-bottom:12px">Entra con un usuario administrador o gerente.</div>
+  <input id="lu" placeholder="Usuario" autocomplete="username" autocapitalize="off">
+  <input id="lp" type="password" placeholder="Contraseña" autocomplete="current-password">
+  <button class="btn" id="lgo" style="width:100%;justify-content:center;padding:11px">Entrar</button>
+</div>
+
+<div id="app" hidden>
+<header>
+  <b>📦 Panel de Inventario</b>
+  <nav><button data-v="tomas" class="on">Tomas</button><button data-v="usuarios">Usuarios</button><button data-v="auditoria">Actividad</button></nav>
+  <span class="sp"></span>
+  <a href="../" target="_blank" class="btn sec sm" style="text-decoration:none">📱 Abrir la app</a>
+  <span class="who" id="who"></span>
+  <button class="btn sec sm" id="salir">Salir</button>
+</header>
+<main>
+  <!-- TOMAS -->
+  <section id="v-tomas">
+    <div class="card" id="cardNueva">
+      <h2>Nueva toma</h2>
+      <div class="row">
+        <div style="flex:2;min-width:220px"><label class="f">Sede</label><input id="nSede" list="sedes" placeholder="Escribe o elige la sede" style="width:100%"></div>
+        <div><label class="f">Fecha del conteo</label><input id="nFecha" type="date"></div>
+        <button class="btn" id="nCrear">➕ Crear toma</button>
+      </div>
+      <div class="mut" style="margin-top:8px">Después de crearla, abre la app en esta PC (botón <b>📱 Abrir la app</b>), elige la toma y carga el <b>Reporte de Inventario</b> una sola vez. Todos los teléfonos lo descargan solos. Al terminar, carga ahí mismo el <b>Items Facturados</b>.</div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Tomas</h2><button class="btn sec sm" id="recargar">↻ Actualizar</button></div>
+      <div class="tw" style="margin-top:10px;max-height:none"><table><thead><tr><th>Sede</th><th>Fecha</th><th>Estado</th><th>Inventario</th><th class="n">Lecturas</th><th class="hide-m">Personas</th><th class="hide-m">Items Fact.</th><th></th></tr></thead><tbody id="tTomas"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- DETALLE DE TOMA -->
+  <section id="v-toma" hidden>
+    <span class="back" id="volver">← Volver a tomas</span>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div><h2 id="dTit" style="margin:0"></h2><div class="mut" id="dSub"></div></div>
+        <div class="row" style="align-items:center">
+          <label class="mut" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="auto" checked> Actualizar solo</label>
+          <button class="btn sec sm" id="dRefresh">↻</button>
+          <button class="btn sm" id="dExcel">⬇ Excel consolidado</button>
+          <button class="btn sm" id="dCerrar"></button>
+          <button class="btn danger sm" id="dBorrar">🗑</button>
+        </div>
+      </div>
+      <div class="grid" id="dKpis" style="margin-top:14px"></div>
+      <div class="mut" id="dNota" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Quién está contando</h2>
+      <div class="tw" style="max-height:none"><table><thead><tr><th>Persona</th><th class="hide-m">Teléfono</th><th class="n">Lecturas</th><th class="n">Productos</th><th class="n">Unidades</th><th>Última subida</th><th></th></tr></thead><tbody id="dUsr"></tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Productos (consolidado)</h2><input id="dBuscar" placeholder="🔎 Buscar producto o código" style="min-width:260px"></div>
+      <div class="chips" id="dChips"></div>
+      <div class="mut" id="dInfo" style="margin-bottom:6px"></div>
+      <div class="tw"><table><thead id="dHead"></thead><tbody id="dBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- USUARIOS -->
+  <section id="v-usuarios" hidden>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Usuarios</h2><button class="btn" id="uNuevo">➕ Nuevo usuario</button></div>
+      <div class="mut" style="margin:6px 0 10px"><b>Inventarista</b>: solo cuenta y ve lo que él cuenta; nunca recibe la existencia del sistema. <b>Gerente</b>: ve resultados al cerrar la toma. <b>Administrador</b>: ve todo. Los permisos se pueden ajustar por persona y llegan a los teléfonos al sincronizar.</div>
+      <div class="tw" style="max-height:none"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Perfil</th><th class="hide-m">Sedes</th><th class="hide-m">Último ingreso</th><th>Estado</th><th></th></tr></thead><tbody id="tUsr"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- AUDITORÍA -->
+  <section id="v-auditoria" hidden>
+    <div class="card">
+      <h2>Actividad reciente</h2>
+      <div class="tw"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead><tbody id="tAud"></tbody></table></div>
+    </div>
+  </section>
+</main>
+</div>
+
+<dialog id="dlgU">
+  <div class="hd" id="uTit">Usuario</div>
+  <div class="bd">
+    <label class="f">Nombre y apellido</label><input id="uNombre">
+    <label class="f">Usuario (para entrar)</label><input id="uUser" autocapitalize="off" spellcheck="false">
+    <label class="f" id="uPwLbl">Contraseña</label><input id="uPw" type="text" autocomplete="off" placeholder="Mínimo 4 caracteres">
+    <label class="f">Perfil</label><select id="uRol"><option value="inv">Inventarista (solo cuenta)</option><option value="gerente">Gerente</option><option value="admin">Administrador</option></select>
+    <label class="f">Permisos</label><div class="perms" id="uPerms"></div>
+    <label class="f">Sedes a las que tiene acceso (ninguna marcada = todas)</label><div class="perms" id="uSedes" style="columns:2"></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="uActivo" style="width:auto"> Usuario activo</label>
+  </div>
+  <div class="ft"><button class="btn sec" id="uCancel">Cancelar</button><button class="btn" id="uSave">Guardar</button></div>
+</dialog>
+
+<datalist id="sedes"></datalist>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const r3 = n => Math.round(n * 1000) / 1000;
+const fmt = n => n == null || n === "" || Number.isNaN(n) ? "—" : r3(n).toLocaleString("es-VE");
+const usd = n => n == null ? "—" : "$ " + r3(n).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const fh = t => t ? new Date(t).toLocaleString("es-VE", {day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"}) : "—";
+const fISO = f => { const m = String(f || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}/${m[2]}/${m[1]}` : f; };
+const hace = t => { if (!t) return "—"; const s = (Date.now() - t) / 1000; return s < 60 ? "hace segundos" : s < 3600 ? `hace ${Math.round(s / 60)} min` : s < 86400 ? `hace ${Math.round(s / 3600)} h` : fh(t); };
+let tt; function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 3800); }
+const SEDES = ["Consumed · San Carlos", "Boulevar Cantón · San Carlos", "Farmatown · Tinaco", "Farmatown 2 · Tinaco", "Premium Guacara · Guacara", "Premium Campeón · Guacara",
+  "Premium Los Guayos · Los Guayos", "Los Llanos 2021 · Tinaquillo", "Los Llanos 2021 (sucursal) · Tinaquillo", "Panacea 2021 · Puerto Cabello", "Panacea · San Carlos",
+  "Panacea Flor Amarillo · Valencia", "Mía 2025 · Valencia", "La Tuya · Acarigua", "Dr. José Gregorio Hernández · San Carlos"];
+const PERM_TXT = {verStockAbierta: "Ver la existencia del sistema con la toma ABIERTA", verStockCerrada: "Ver la existencia del sistema con la toma CERRADA",
+  verDifAbierta: "Ver diferencias y resultados con la toma ABIERTA", verDifCerrada: "Ver diferencias y resultados con la toma CERRADA",
+  cargar: "Crear tomas y cargar Reporte de Inventario / Items Facturados", exportar: "Exportar y enviar reportes", cerrar: "Cerrar, reabrir y eliminar tomas",
+  quitar: "Autorizar quitar productos del conteo", usuarios: "Administrar usuarios", equipo: "Ver el conteo de todo el equipo (panel y consolidado)"};
+const PERFIL_TXT = {admin: "Administrador", gerente: "Gerente", inv: "Inventarista"};
+
+/* ---------- API ---------- */
+let TOKEN = localStorage.getItem("ti_admin_token") || "", ME = null, PERFILES = null;
+async function api(ruta, opt = {}) {
+  const r = await fetch("../api/" + ruta, {method: opt.method || "GET", headers: {"Content-Type": "application/json", Authorization: "Bearer " + TOKEN},
+    body: opt.body !== undefined ? JSON.stringify(opt.body) : undefined, cache: "no-store"}).catch(() => null);
+  if (!r) throw new Error("Sin conexión con el servidor");
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { salir(); throw new Error(d.error || "Sesión vencida"); }
+  if (!r.ok) throw new Error(d.error || "Error " + r.status);
+  return d;
+}
+const puede = p => !!(ME && ME.perm[p]);
+
+/* ---------- Sesión ---------- */
+async function entrar() {
+  const r = await fetch("../api/login", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({usuario: $("#lu").value, pw: $("#lp").value})}).catch(() => null);
+  const d = r ? await r.json().catch(() => ({})) : {error: "Sin conexión con el servidor"};
+  if (!r || !r.ok) return toast(d.error || "No se pudo entrar");
+  if (!d.user.perm.usuarios && !d.user.perm.equipo) return toast("Tu usuario no tiene acceso al panel (es solo para contar en la app)");
+  TOKEN = d.token; localStorage.setItem("ti_admin_token", TOKEN); iniciar(d.user);
+}
+function salir() { TOKEN = ""; localStorage.removeItem("ti_admin_token"); ME = null; $("#app").hidden = true; $("#login").hidden = false; $("#lp").value = ""; }
+$("#lgo").onclick = entrar;
+$("#lp").onkeydown = e => { if (e.key === "Enter") entrar(); };
+$("#lu").onkeydown = e => { if (e.key === "Enter") $("#lp").focus(); };
+$("#salir").onclick = salir;
+function iniciar(u) {
+  ME = u; $("#login").hidden = true; $("#app").hidden = false;
+  $("#who").textContent = `${u.nombre} · ${PERFIL_TXT[u.rol] || u.rol}`;
+  document.querySelector('nav button[data-v="usuarios"]').hidden = !puede("usuarios");
+  document.querySelector('nav button[data-v="auditoria"]').hidden = !puede("usuarios");
+  $("#cardNueva").hidden = !puede("cargar");
+  ver("tomas");
+}
+
+/* ---------- Navegación ---------- */
+let VISTA = "tomas", TOMA_ID = null, autoT = null;
+document.querySelectorAll("header nav button").forEach(b => b.onclick = () => ver(b.dataset.v));
+function ver(v) {
+  VISTA = v; clearInterval(autoT);
+  document.querySelectorAll("header nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v || (v === "toma" && b.dataset.v === "tomas")));
+  document.querySelectorAll("main>section").forEach(s => s.hidden = s.id !== "v-" + v);
+  if (v === "tomas") cargarTomas();
+  if (v === "usuarios") cargarUsuarios();
+  if (v === "auditoria") cargarAuditoria();
+  if (v === "toma") { cargarToma(); autoT = setInterval(() => { if ($("#auto").checked && !document.hidden) cargarToma(true); }, 15000); }
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Tomas ---------- */
+let TOMAS = [];
+$("#nFecha").value = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+$("#sedes").innerHTML = SEDES.map(s => `<option value="${esc(s)}">`).join("");
+$("#recargar").onclick = () => cargarTomas();
+$("#nCrear").onclick = async () => {
+  const sede = $("#nSede").value.trim(), fecha = $("#nFecha").value;
+  if (!sede) return toast("Indica la sede");
+  try { const t = await api("tomas", {method: "POST", body: {sede, fecha}}); toast("Toma creada: ya aparece en los teléfonos"); $("#nSede").value = ""; await cargarTomas(); abrir(t.id); }
+  catch (e) { toast(e.message); }
+};
+async function cargarTomas() {
+  try { const r = await api("tomas"); TOMAS = r.tomas; ME = r.user; }
+  catch (e) { return toast(e.message); }
+  $("#tTomas").innerHTML = TOMAS.length ? TOMAS.map(t => `<tr class="click" data-id="${esc(t.id)}">
+      <td><b>${esc(t.sede)}</b></td><td>${fISO(t.fecha)}</td>
+      <td>${t.meta.cerrada ? `<span class="tag cerr">🔒 Cerrada</span>` : `<span class="tag ok">Abierta</span>`}</td>
+      <td>${t.inv ? `${esc(t.inv.archivo || "")}<div class="mut">${fmt(t.inv.n)} productos · ${fh(t.inv.t)}</div>` : `<span class="tag warn">Sin inventario</span>`}</td>
+      <td class="n">${fmt(t.conteo.lect)}</td><td class="hide-m">${t.conteo.usuarios}</td><td class="hide-m">${t.n_cortes ? "✔ " + t.n_cortes : "—"}</td>
+      <td><button class="btn sec sm">Ver ›</button></td></tr>`).join("")
+    : `<tr><td colspan="8" class="mut">Aún no hay tomas. Crea la primera arriba.</td></tr>`;
+  $("#tTomas").querySelectorAll("tr[data-id]").forEach(tr => tr.onclick = () => abrir(tr.dataset.id));
+}
+function abrir(id) { TOMA_ID = id; FILTRO = "CONT"; $("#dBuscar").value = ""; ver("toma"); }
+$("#volver").onclick = () => ver("tomas");
+
+/* ---------- Detalle / consolidado ---------- */
+let D = null, FILTRO = "CONT";
+const ESTADO = {OK: ["Cuadra", "ok"], FALTANTE: ["Faltante", "bad"], SOBRANTE: ["Sobrante", "sob"], NO_CONTADO: ["No contado", "warn"], SIN_EXISTENCIA: ["Sin existencia", ""], NOINV: ["No está en inventario", "sob"], CONTADO: ["Contado", ""]};
+function evaluar(x, d) {
+  // Igual que la app: si hay Items Facturados con existencia, el teórico es un rango entre la existencia final y la inicial
+  if (!d.stock) { x.est = x.contado != null ? "CONTADO" : "NO_CONTADO"; x.dif = null; return x; }
+  const s0 = x.stock || 0, fin = x.final != null ? x.final : s0, lo = Math.min(s0, fin), hi = Math.max(s0, fin);
+  x.teo = lo === hi ? fmt(hi) : `${fmt(lo)}–${fmt(hi)}`;
+  if (!x.enInv) { x.est = "NOINV"; x.dif = x.contado || 0; }
+  else if (x.contado == null) { x.dif = -hi; x.est = hi > 0 ? "NO_CONTADO" : "SIN_EXISTENCIA"; }
+  else if (x.contado < lo) { x.dif = r3(x.contado - lo); x.est = "FALTANTE"; }
+  else if (x.contado > hi) { x.dif = r3(x.contado - hi); x.est = "SOBRANTE"; }
+  else { x.dif = 0; x.est = "OK"; }
+  x.valor = x.costo != null && x.dif ? r3(x.dif * x.costo) : null;
+  return x;
+}
+async function cargarToma(silencioso) {
+  try { D = await api("tomas/" + encodeURIComponent(TOMA_ID) + "/consolidado"); }
+  catch (e) { if (!silencioso) toast(e.message); if (/no existe/i.test(e.message)) ver("tomas"); return; }
+  D.filas.forEach(x => evaluar(x, D));
+  const t = D.toma;
+  $("#dTit").textContent = `${t.sede} · ${fISO(t.fecha)}`;
+  $("#dSub").innerHTML = `${t.meta.cerrada ? `<span class="tag cerr">🔒 Cerrada ${fh(t.meta.cerrada.t)} por ${esc(t.meta.cerrada.usuario || "")}</span>` : `<span class="tag ok">Abierta</span>`}
+    · Inventario: ${t.inv ? `<b>${esc(t.inv.archivo || "")}</b> (${fh(t.inv.t)})` : "<b>sin cargar</b>"}
+    · Items Facturados: ${D.corte ? `<b>${esc(D.corte.archivo || "")}</b> (${fh(D.corte.t)})` : "sin cargar"}`;
+  $("#dCerrar").hidden = !puede("cerrar"); $("#dBorrar").hidden = !puede("cerrar");
+  $("#dCerrar").textContent = t.meta.cerrada ? "🔓 Reabrir" : "🔒 Cerrar toma";
+  $("#dCerrar").className = "btn sm " + (t.meta.cerrada ? "sec" : "danger");
+  const F = D.filas, cont = F.filter(x => x.contado != null), cuenta = e => F.filter(x => x.est === e);
+  const k = [["Productos en inventario", fmt(F.filter(x => x.enInv).length)], ["Productos contados", fmt(cont.length)], ["Unidades contadas", fmt(cont.reduce((a, x) => a + x.contado, 0))],
+    ["Lecturas", fmt(D.usuarios.reduce((a, u) => a + u.lect, 0))], ["Personas contando", D.usuarios.length ? new Set(D.usuarios.map(u => u.u)).size : 0]];
+  if (D.stock) {
+    const fal = cuenta("FALTANTE"), sob = [...cuenta("SOBRANTE"), ...cuenta("NOINV")], ok = cuenta("OK"), nc = cuenta("NO_CONTADO");
+    const v = l => l.some(x => x.valor != null) ? `<br><small>${usd(Math.abs(l.reduce((a, x) => a + (x.valor || 0), 0)))}</small>` : "";
+    k.push(["Cuadran", fmt(ok.length), "ok"], ["Faltantes", `${fmt(fal.length)} · ${fmt(-fal.reduce((a, x) => a + x.dif, 0))} und${v(fal)}`, "bad"],
+      ["Sobrantes", `${fmt(sob.length)} · ${fmt(sob.reduce((a, x) => a + x.dif, 0))} und${v(sob)}`, "sob"], ["Con existencia sin contar", fmt(nc.length), "warn"],
+      ["Exactitud de lo contado", cont.length ? Math.round(ok.length / cont.length * 100) + " %" : "—"]);
+  }
+  $("#dKpis").innerHTML = k.map(([a, b, c]) => `<div class="kpi ${c || ""}"><b>${b}</b><span>${a}</span></div>`).join("");
+  $("#dNota").innerHTML = !D.stock ? "Tu usuario no tiene permiso para ver la existencia del sistema en esta toma." :
+    D.corte && D.corte.conExist ? "Diferencias estimadas con el Items Facturados: el teórico va de la existencia final a la inicial (lo vendido durante la toma no cuenta como faltante). El cálculo detallado por hora de lectura, factores y ajustes para Plade está en la app → Cierre."
+    : "⚠ Diferencias <b>preliminares</b> contra el Reporte de Inventario inicial: aún no se cargó el Items Facturados, así que lo vendido durante la toma aparece como faltante.";
+  $("#dUsr").innerHTML = D.usuarios.length ? D.usuarios.sort((a, b) => b.act - a.act).map(u => `<tr><td><b>${esc(u.nombre)}</b> <span class="mut">${esc(u.u)}</span></td>
+      <td class="hide-m mut">${esc(u.device.slice(0, 8))}</td><td class="n">${fmt(u.lect)}</td><td class="n">${fmt(u.prod)}</td><td class="n">${fmt(u.unidades)}</td><td>${hace(u.act)}</td>
+      <td>${puede("cerrar") ? `<button class="btn danger sm" data-u="${esc(u.u)}" data-d="${esc(u.device)}" title="Descartar este conteo">✕</button>` : ""}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="mut">Nadie ha subido conteos todavía. Los teléfonos suben su conteo solos cuando tienen conexión.</td></tr>`;
+  $("#dUsr").querySelectorAll("button[data-u]").forEach(b => b.onclick = async () => {
+    if (!confirm(`¿Descartar el conteo de ${b.dataset.u} (teléfono ${b.dataset.d.slice(0, 8)})? Si ese teléfono sigue con datos, lo volverá a subir al sincronizar.`)) return;
+    try { await api(`tomas/${encodeURIComponent(TOMA_ID)}/conteos/${encodeURIComponent(b.dataset.u)}/${encodeURIComponent(b.dataset.d)}`, {method: "DELETE"}); cargarToma(); } catch (e) { toast(e.message); } });
+  pintarTabla();
+}
+const CHIPS = () => D && D.stock ? [["CONT", "Contados"], ["DIF", "Con diferencia"], ["FALTANTE", "Faltantes"], ["SOBRANTE", "Sobrantes"], ["NO_CONTADO", "No contados"], ["OK", "Cuadran"], ["ALL", "Todos"]]
+  : [["CONT", "Contados"], ["NO_CONTADO", "No contados"], ["ALL", "Todos"]];
+const FILTROS = {CONT: x => x.contado != null, DIF: x => ["FALTANTE", "SOBRANTE", "NOINV"].includes(x.est), FALTANTE: x => x.est === "FALTANTE", SOBRANTE: x => x.est === "SOBRANTE" || x.est === "NOINV",
+  NO_CONTADO: x => x.est === "NO_CONTADO", OK: x => x.est === "OK", ALL: x => x.est !== "SIN_EXISTENCIA"};
+$("#dBuscar").oninput = () => pintarTabla();
+function filasVista() {
+  const q = $("#dBuscar").value.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/\s+/).filter(Boolean);
+  return D.filas.filter(FILTROS[FILTRO] || FILTROS.ALL).filter(x => { if (!q.length) return true; const h = `${x.desc} ${x.cod} ${x.bc}`.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); return q.every(w => h.includes(w)); })
+    .sort((a, b) => D.stock ? Math.abs(b.valor ?? b.dif ?? 0) - Math.abs(a.valor ?? a.dif ?? 0) || String(a.desc).localeCompare(b.desc) : String(a.desc).localeCompare(b.desc));
+}
+function pintarTabla() {
+  if (!D) return;
+  $("#dChips").innerHTML = CHIPS().map(([k, l]) => `<button data-f="${k}" class="${FILTRO === k ? "on" : ""}">${l} (${fmt(D.filas.filter(FILTROS[k]).length)})</button>`).join("");
+  $("#dChips").querySelectorAll("button").forEach(b => b.onclick = () => { FILTRO = b.dataset.f; pintarTabla(); });
+  const us = [...new Set(D.usuarios.map(u => u.u))], nom = Object.fromEntries(D.usuarios.map(u => [u.u, u.nombre]));
+  const conFinal = D.stock && D.corte && D.corte.conExist;
+  $("#dHead").innerHTML = `<tr><th>Producto</th><th class="hide-m">Código</th>${D.stock ? `<th class="n">Sistema</th>${conFinal ? `<th class="n">Final</th>` : ""}` : ""}<th class="n">Contado</th>${D.stock ? `<th class="n">Dif.</th><th class="n hide-m">Valor</th><th>Estado</th>` : ""}${us.length > 1 ? us.map(u => `<th class="n hide-m">${esc(nom[u])}</th>`).join("") : ""}</tr>`;
+  const v = filasVista(), LIM = 1500;
+  $("#dInfo").textContent = `${fmt(v.length)} productos${v.length > LIM ? ` (se muestran ${LIM}; usa el buscador o descarga el Excel)` : ""}`;
+  $("#dBody").innerHTML = v.slice(0, LIM).map(x => `<tr><td>${esc(x.desc)}</td><td class="hide-m mut">${esc(x.bc || x.cod)}${x.cod && x.cod !== x.bc ? "<br>" + esc(x.cod) : ""}</td>
+    ${D.stock ? `<td class="n">${fmt(x.stock)}</td>${conFinal ? `<td class="n">${fmt(x.final)}</td>` : ""}` : ""}<td class="n"><b>${fmt(x.contado)}</b></td>
+    ${D.stock ? `<td class="n ${x.dif < 0 ? "neg" : x.dif > 0 ? "pos" : ""}">${x.dif ? (x.dif > 0 ? "+" : "") + fmt(x.dif) : x.est === "OK" ? "0" : "—"}</td><td class="n hide-m">${x.valor != null ? usd(x.valor) : ""}</td><td><span class="tag ${ESTADO[x.est][1]}">${ESTADO[x.est][0]}</span></td>` : ""}
+    ${us.length > 1 ? us.map(u => `<td class="n hide-m">${x.por[u] != null ? fmt(x.por[u]) : ""}</td>`).join("") : ""}</tr>`).join("") || `<tr><td colspan="9" class="mut">Sin productos en este filtro.</td></tr>`;
+}
+$("#dRefresh").onclick = () => cargarToma();
+$("#dCerrar").onclick = async () => {
+  const c = D.toma.meta.cerrada;
+  if (!confirm(c ? "¿Reabrir la toma? Los teléfonos podrán volver a contar." : "¿Cerrar la toma? Los teléfonos ya no podrán contar ni subir lecturas nuevas.")) return;
+  try { await api(`tomas/${encodeURIComponent(TOMA_ID)}/${c ? "reabrir" : "cerrar"}`, {method: "POST"}); toast(c ? "Toma reabierta" : "Toma cerrada"); cargarToma(); } catch (e) { toast(e.message); }
+};
+$("#dBorrar").onclick = async () => {
+  if (!confirm(`¿Eliminar del servidor la toma ${D.toma.sede} del ${fISO(D.toma.fecha)}? Se borran su inventario, Items Facturados y TODOS los conteos subidos. No se puede deshacer.`)) return;
+  if (prompt('Escribe ELIMINAR para confirmar') !== "ELIMINAR") return;
+  try { await api("tomas/" + encodeURIComponent(TOMA_ID), {method: "DELETE"}); toast("Toma eliminada"); ver("tomas"); } catch (e) { toast(e.message); }
+};
+function cargarXLSX() { return window.XLSX ? Promise.resolve() : new Promise((res, rej) => { const s = document.createElement("script"); s.src = "../lib/xlsx.bundle.js"; s.onload = res; s.onerror = () => rej(new Error("No se pudo cargar la librería de Excel")); document.head.appendChild(s); }); }
+$("#dExcel").onclick = async () => {
+  try { await cargarXLSX(); } catch (e) { return toast(e.message); }
+  const us = [...new Set(D.usuarios.map(u => u.u))], nom = Object.fromEntries(D.usuarios.map(u => [u.u, u.nombre])), conFinal = D.stock && D.corte && D.corte.conExist;
+  const head = ["Código", "Código de barras", "Descripción", ...(D.stock ? ["Existencia sistema", ...(conFinal ? ["Existencia final"] : []), "Costo"] : []), "Contado",
+    ...(D.stock ? ["Diferencia", "Valor diferencia", "Estado"] : []), "Primera lectura", "Última lectura", ...us.map(u => "Contado por " + nom[u])];
+  const filas = D.filas.filter(x => x.est !== "SIN_EXISTENCIA").map(x => [x.cod, x.bc, x.desc, ...(D.stock ? [x.stock, ...(conFinal ? [x.final] : []), x.costo] : []), x.contado ?? "",
+    ...(D.stock ? [x.dif ?? "", x.valor ?? "", ESTADO[x.est][0]] : []), x.t1 ? new Date(x.t1) : "", x.t2 ? new Date(x.t2) : "", ...us.map(u => x.por[u] ?? "")]);
+  const X = window.XLSX, wb = X.utils.book_new(), ws = X.utils.aoa_to_sheet([head, ...filas], {cellDates: true});
+  ws["!cols"] = head.map((h, i) => ({wch: i === 2 ? 46 : Math.max(11, h.length + 2)}));
+  X.utils.book_append_sheet(wb, ws, "Consolidado");
+  X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([["Persona", "Usuario", "Teléfono", "Lecturas", "Productos", "Unidades", "Última subida"],
+    ...D.usuarios.map(u => [u.nombre, u.u, u.device, u.lect, u.prod, u.unidades, new Date(u.act)])], {cellDates: true}), "Personas");
+  const t = D.toma, d = new Date(), p = n => String(n).padStart(2, "0");
+  X.writeFile(wb, `Consolidado_${t.sede.split("·")[0].trim().replace(/[^\w]+/g, "_")}_${t.fecha}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`);
+};
+
+/* ---------- Usuarios ---------- */
+let USUARIOS = [], EDIT = null;
+async function cargarUsuarios() {
+  try { const r = await api("users"); USUARIOS = r.users; PERFILES = r.perfiles; } catch (e) { return toast(e.message); }
+  $("#tUsr").innerHTML = USUARIOS.map(u => `<tr><td><b>${esc(u.nombre)}</b>${u.u === ME.u ? ' <span class="tag">tú</span>' : ""}</td><td>${esc(u.u)}</td>
+    <td>${PERFIL_TXT[u.rol] || u.rol}${u.permPropio ? ' <span class="mut">(personalizado)</span>' : ""}</td><td class="hide-m mut">${u.sedes ? esc(u.sedes.map(s => s.split("·")[0].trim()).join(", ")) : "Todas"}</td>
+    <td class="hide-m">${hace(u.ultimo)}</td><td>${u.activo ? '<span class="tag ok">Activo</span>' : '<span class="tag bad">Inactivo</span>'}</td>
+    <td style="white-space:nowrap"><button class="btn sec sm" data-e="${esc(u.u)}">✎ Editar</button> ${u.u === ME.u ? "" : `<button class="btn danger sm" data-d="${esc(u.u)}">🗑</button>`}</td></tr>`).join("");
+  $("#tUsr").querySelectorAll("button[data-e]").forEach(b => b.onclick = () => editar(USUARIOS.find(u => u.u === b.dataset.e)));
+  $("#tUsr").querySelectorAll("button[data-d]").forEach(b => b.onclick = async () => {
+    const u = USUARIOS.find(x => x.u === b.dataset.d);
+    if (!confirm(`¿Eliminar el usuario ${u.nombre} (${u.u})? Sus conteos ya subidos se conservan. Si solo quieres impedirle entrar, mejor márcalo como inactivo.`)) return;
+    try { await api("users/" + encodeURIComponent(u.u), {method: "DELETE"}); toast("Usuario eliminado"); cargarUsuarios(); } catch (e) { toast(e.message); } });
+}
+function pintarPerms(p) { $("#uPerms").innerHTML = Object.keys(PERM_TXT).map(k => `<label><input type="checkbox" data-p="${k}" ${p[k] ? "checked" : ""}> ${PERM_TXT[k]}</label>`).join(""); }
+function pintarSedes(sel) {
+  const todas = [...new Set([...SEDES, ...TOMAS.map(t => t.sede), ...(sel || [])])];
+  $("#uSedes").innerHTML = todas.map(s => `<label><input type="checkbox" data-s="${esc(s)}" ${sel && sel.includes(s) ? "checked" : ""}> ${esc(s)}</label>`).join("");
+}
+function editar(u) {
+  EDIT = u || null;
+  $("#uTit").textContent = u ? `Editar · ${u.nombre}` : "Nuevo usuario";
+  $("#uNombre").value = u ? u.nombre : ""; $("#uUser").value = u ? u.u : ""; $("#uUser").disabled = !!u;
+  $("#uPw").value = ""; $("#uPwLbl").textContent = u ? "Nueva contraseña (vacía = no cambiarla)" : "Contraseña";
+  $("#uRol").value = u ? u.rol : "inv"; pintarPerms(u ? u.perm : PERFILES.inv.p); pintarSedes(u ? u.sedes : null);
+  $("#uActivo").checked = u ? u.activo : true;
+  $("#dlgU").showModal(); setTimeout(() => (u ? $("#uPw") : $("#uNombre")).focus(), 50);
+}
+$("#uRol").onchange = () => pintarPerms(PERFILES[$("#uRol").value].p);
+$("#uNuevo").onclick = async () => { if (!TOMAS.length) await cargarTomas().catch(() => {}); if (!PERFILES) await cargarUsuarios(); editar(null); };
+$("#uCancel").onclick = () => $("#dlgU").close();
+$("#uSave").onclick = async () => {
+  const perm = {}; $("#uPerms").querySelectorAll("input").forEach(i => perm[i.dataset.p] = i.checked ? 1 : 0);
+  const base = PERFILES[$("#uRol").value].p, perso = Object.keys(perm).some(k => !!perm[k] !== !!base[k]);
+  const sedes = [...$("#uSedes").querySelectorAll("input:checked")].map(i => i.dataset.s);
+  const body = {nombre: $("#uNombre").value.trim(), rol: $("#uRol").value, perm: perso ? perm : null, sedes, activo: $("#uActivo").checked};
+  if ($("#uPw").value) body.pw = $("#uPw").value;
+  try {
+    if (EDIT) await api("users/" + encodeURIComponent(EDIT.u), {method: "PUT", body});
+    else await api("users", {method: "POST", body: {...body, u: $("#uUser").value.trim().toLowerCase()}});
+    $("#dlgU").close(); toast(EDIT ? "Usuario actualizado" : "Usuario creado"); cargarUsuarios();
+  } catch (e) { toast(e.message); }
+};
+
+/* ---------- Actividad ---------- */
+async function cargarAuditoria() {
+  try { const r = await api("auditoria");
+    $("#tAud").innerHTML = r.items.map(a => `<tr><td style="white-space:nowrap">${fh(a.t)}</td><td>${esc(a.u)}</td><td>${esc(a.accion)}</td><td class="mut">${esc(a.detalle)}</td></tr>`).join(""); }
+  catch (e) { toast(e.message); }
+}
+
+/* ---------- Arranque ---------- */
+(async () => {
+  if (TOKEN) { try { const r = await api("me"); if (r.user.perm.usuarios || r.user.perm.equipo) return iniciar(r.user); } catch (e) {} }
+  salir(); $("#lu").focus();
+})();
+</script>
+</body>
+</html>

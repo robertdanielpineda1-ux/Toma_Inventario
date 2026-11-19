@@ -1,0 +1,2528 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f4c5c">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Toma de Inventario</title>
+<style>
+:root{--pri:#0f4c5c;--pri2:#16697a;--bg:#f2f5f7;--card:#fff;--tx:#1d2731;--mut:#66727e;--ok:#1e8e3e;--bad:#c62828;--warn:#e08a00;--sob:#1565c0;--br:#dde3e8}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+header{background:var(--pri);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.brand{min-width:0}.brand b{display:block;font-size:17px}.brand span{font-size:12px;opacity:.85;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:11px;background:rgba(255,255,255,.18);padding:4px 9px;border-radius:20px;white-space:nowrap}
+nav.tabs{display:flex;background:var(--pri2);position:sticky;top:0;z-index:5}
+nav.tabs button{flex:1;border:0;background:none;color:#cfe3e8;padding:12px 4px;font-size:14px;font-weight:600;border-bottom:3px solid transparent}
+nav.tabs button.active{color:#fff;border-bottom-color:#ffd166}
+main{padding:12px;max-width:760px;margin:0 auto;padding-bottom:40px}
+.card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.card h3{margin:0 0 8px;font-size:15px;color:var(--pri)}
+.card h3 .n{display:inline-block;background:var(--pri);color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-size:12px;margin-right:6px}
+.mut{color:var(--mut);font-size:13px}
+label.f{display:block;font-size:12px;color:var(--mut);margin:8px 0 3px}
+input[type=text],input[type=search],input[type=number],input[type=password],input[type=date],select{width:100%;padding:11px;border:1px solid var(--br);border-radius:9px;font-size:16px;background:#fff;color:var(--tx)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:600;background:var(--pri);color:#fff;cursor:pointer}
+.btn.sec{background:#e6eef1;color:var(--pri)}
+.btn.danger{background:#fdecec;color:var(--bad)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.4}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.status{border-left:4px solid var(--br);padding:8px 10px;background:#f7f9fa;border-radius:6px;margin:8px 0;font-size:13px}
+.status.on{border-color:var(--ok);background:#edf7ef}
+.status .w{color:#a86500;display:block;margin-top:3px}
+.warnbox{background:#fff4e0;border:1px solid #f3c77a;color:#7a4b00;border-radius:9px;padding:10px;font-size:13px;margin-bottom:10px}
+ol.steps{margin:0;padding-left:20px;font-size:13px;color:var(--mut)}ol.steps li{margin:4px 0}
+/* escanear */
+.scanbar{display:flex;gap:6px}
+.scanbar input{font-size:20px;padding:14px;font-family:ui-monospace,monospace;letter-spacing:.5px}
+.scanbar .btn{flex:0 0 auto;padding:0 14px;font-size:20px}
+.qty{display:flex;align-items:center;gap:6px;margin-top:10px}
+.qty button{width:46px;height:46px;border-radius:10px;border:1px solid var(--br);background:#fff;font-size:22px;color:var(--pri)}
+.qty input{width:80px;text-align:center;font-size:20px;font-weight:700}
+.qty label{font-size:13px;color:var(--mut);display:flex;align-items:center;gap:4px}
+#last{transition:background .25s}
+#last.flash-ok{background:#d8f3de}#last.flash-bad{background:#fde0e0}
+#last .desc{font-size:17px;font-weight:600;min-height:22px}
+#last .big{font-size:44px;font-weight:800;color:var(--pri);line-height:1}
+#last .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;background:#fde0e0;color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.kpis div{background:#f2f6f8;border-radius:9px;padding:8px 4px}.kpis b{display:block;font-size:20px;color:var(--pri)}.kpis span{font-size:11px;color:var(--mut)}
+#camBox{position:relative;background:#000;border-radius:12px;overflow:hidden;margin-bottom:12px}
+#camBox video{width:100%;display:block;max-height:52vh;object-fit:contain;background:#000}
+#camBox .aim{position:absolute;left:5%;right:5%;top:27.5%;height:45%;border:3px solid rgba(255,209,102,.95);border-radius:10px;pointer-events:none;transition:border-color .15s,background .15s}
+#camBox .aim.hit{border-color:#3ddc84;background:rgba(61,220,132,.18)}
+#camBox .camtop{position:absolute;top:8px;right:8px;display:flex;gap:6px}
+#camBox .camtop button{background:rgba(0,0,0,.6);color:#fff;border:0;border-radius:20px;padding:8px 12px;font-weight:600;font-size:14px}
+#camBox .camlbl{position:absolute;left:8px;bottom:8px;right:8px;color:#fff;font-size:12px;text-shadow:0 1px 2px #000;pointer-events:none}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid #eef1f3}
+.list li .g{flex:1;min-width:0}.list li .g div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list li small{color:var(--mut);font-size:12px}
+.list li .q{font-weight:700;color:var(--pri);min-width:34px;text-align:right}
+.list li button{border:0;background:#f3f5f7;border-radius:8px;padding:8px 10px;color:var(--mut)}
+.list li.unk .g div:first-child{color:var(--bad)}
+/* cierre */
+.sum{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.sum div{border-radius:10px;padding:10px;background:#f2f6f8}.sum b{display:block;font-size:22px}.sum span{font-size:12px;color:var(--mut)}
+.sum .ok b{color:var(--ok)}.sum .fa b{color:var(--bad)}.sum .so b{color:var(--sob)}.sum .nc b{color:var(--warn)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px}
+.chips button{flex:0 0 auto;border:1px solid var(--br);background:#fff;border-radius:20px;padding:7px 12px;font-size:13px;color:var(--tx)}
+.chips button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{position:sticky;top:44px;background:#eef3f5;font-size:11px;color:var(--mut);text-align:right;padding:6px 4px;font-weight:600}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl tbody tr{cursor:pointer}.tbl tbody tr:active{background:#eef5f7}
+.tbl td{padding:7px 4px;border-bottom:1px solid #eef1f3;text-align:right;vertical-align:top}
+.tbl td:first-child div{font-weight:600;font-size:13px}.tbl td:first-child small{color:var(--mut);font-size:11px}
+.neg{color:var(--bad);font-weight:700}.pos{color:var(--sob);font-weight:700}.zero{color:var(--ok);font-weight:700}
+.est{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;display:inline-block;margin-top:2px}
+.est.OK,.est.OK_VENTA{background:#e3f4e7;color:var(--ok)}.est.FALTANTE{background:#fde0e0;color:var(--bad)}.est.SOBRANTE{background:#e1ecfb;color:var(--sob)}
+.est.NO_CONTADO{background:#fff1d6;color:#a86500}.est.NO_REGISTRADO{background:#efe3fb;color:#6a1b9a}.est.SIN_EXISTENCIA{background:#eceff1;color:var(--mut)}
+.est.PEND{background:#fff1d6;color:#a86500}
+.note{font-size:12px;color:var(--mut);background:#fffbea;border:1px solid #f3e4a8;border-radius:8px;padding:9px;margin-top:8px}
+/* dialog */
+dialog{border:0;border-radius:14px;padding:0;width:min(560px,94vw);max-height:90vh}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog .hd{background:var(--pri);color:#fff;padding:12px 14px;font-weight:700}
+dialog .bd{padding:12px 14px;overflow:auto;max-height:64vh}
+dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)}dialog .ft .btn{flex:1}
+.prev{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px}.prev td,.prev th{border:1px solid #e3e8ec;padding:4px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.prev th{background:#eef3f5}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(140px);background:#263238;color:#fff;padding:11px 16px;border-radius:10px;font-size:14px;transition:transform .25s;z-index:50;max-width:92vw;text-align:center}
+#toast.show{transform:translateX(-50%) translateY(0)}
+.modo{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px;border-radius:10px;background:#f2f6f8;font-size:14px;font-weight:600;color:var(--pri)}
+.modo input{width:22px;height:22px}
+#qVal{font-size:34px;text-align:center;font-weight:800;margin-top:12px;padding:12px}
+#dlgQty .ft{flex-wrap:wrap}
+.ficha .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;text-align:center}
+.ficha .nums div{background:#f2f6f8;border-radius:9px;padding:8px 4px}.ficha .nums b{display:block;font-size:24px}.ficha .nums span{font-size:11px;color:var(--mut)}
+.ficha .t{font-weight:700;font-size:16px}.ficha .sub{font-size:12px;color:var(--mut);margin-top:2px}
+.ficha .pie{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;font-size:12px;color:var(--mut)}
+.buscador li{cursor:pointer;align-items:flex-start;padding:10px 2px}
+.buscador li .g div{white-space:normal;overflow:visible;line-height:1.3;font-size:14px;font-weight:600}
+.buscador li small{display:block;margin-top:3px;word-break:break-all}
+.buscador li .ex{flex:0 0 auto;background:#eef3f5;border-radius:8px;padding:4px 8px;text-align:center;line-height:1.2}.buscador li:active{background:#eef5f7}
+.buscador mark{background:#ffe8a3;color:inherit;border-radius:2px}
+.buscador .ex{font-weight:700;color:var(--pri);text-align:right;font-size:12px;min-width:62px}
+.valores{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.vbox{border-radius:12px;padding:12px;border:1px solid transparent}
+.vbox span{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.vbox b{display:block;font-size:24px;margin:4px 0 2px}.vbox small{font-size:11px;color:var(--mut)}
+.vbox.fa{background:#fdeded;border-color:#f6c9c9;color:var(--bad)}.vbox.so{background:#eaf1fc;border-color:#c8daf5;color:var(--sob)}
+.vnota{grid-column:1/-1;font-size:11px;color:var(--mut)}
+.vbox.fx{background:#eef3f5;border-color:#cfdde3;color:var(--pri)}
+.vbox.fx.ev-bad{border-color:#e7a3a3}.vbox.fx.ev-warn{border-color:#f0c77a}.vbox.fx.ev-ok{border-color:#9fd3ad}
+.evl{margin-top:6px;font-size:11.5px;font-weight:700;line-height:1.3}.evl.ok{color:var(--ok)}.evl.bad{color:var(--bad)}.evl.warn{color:#a86500}.evl.mut{color:var(--mut)}
+.tolrow{display:flex;align-items:center;gap:6px}.tolrow input{width:70px;padding:5px 8px;font-size:14px;text-align:center}
+.overlay{position:fixed;inset:0;z-index:100;background:linear-gradient(160deg,#0f4c5c,#16697a);display:flex;align-items:flex-start;justify-content:center;padding:calc(30px + env(safe-area-inset-top)) 14px 20px;overflow:auto}
+.ovbox{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:400px;box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:center}
+.ovbox.wide{max-width:520px;text-align:left}
+.ovbox h2{margin:6px 0 4px;color:var(--pri);font-size:20px}
+.ovbox input[type=password],.ovbox input[type=text]{margin-top:10px;text-align:center;font-size:17px}
+.ovbox .btn{margin-top:12px}
+.ovlogo{width:64px;height:64px;border-radius:14px}
+.lnk{background:none;border:0;color:var(--mut);font-size:13px;margin-top:12px;text-decoration:underline}
+.tomaAct{display:flex;align-items:center;gap:10px;background:#eef3f5;border-radius:10px;padding:10px 12px}
+.tomaAct>div{flex:1;min-width:0}.tomaAct b{display:block;font-size:16px;color:var(--pri)}.tomaAct span{font-size:13px;color:var(--mut)}
+.tomaAct .btn{flex:0 0 auto;padding:9px 12px}
+#nuPerms label{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0}#nuPerms input{width:18px;height:18px;flex:0 0 auto;margin-top:1px}
+.status.cerr{border-color:var(--bad);background:#fdeded}
+.lockbanner{background:#fdeded;border:1px solid #f0b4b4;color:var(--bad);border-radius:9px;padding:10px;font-size:13px;font-weight:600;margin-bottom:10px}
+#tLista li .g div{white-space:normal}
+#hdrBrand{cursor:pointer}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<!-- Pantalla de contraseña -->
+<div id="lock" class="overlay">
+  <div class="ovbox">
+    <img src="icon-192.png" alt="" class="ovlogo">
+    <h2>Toma de Inventario</h2>
+    <div class="mut" id="lockMsg">Cargando…</div>
+    <input type="text" id="luNombre" placeholder="Nombre y apellido" autocomplete="off" hidden>
+    <input type="text" id="luUser" placeholder="Usuario" autocomplete="username" autocapitalize="off" spellcheck="false" hidden>
+    <input type="password" id="pw1" placeholder="Contraseña" autocomplete="off" hidden>
+    <input type="password" id="pw2" placeholder="Repite la contraseña" autocomplete="off" hidden>
+    <button class="btn block" id="btnEntrar" hidden>Entrar</button>
+    <button class="lnk" id="btnOlvide" hidden>¿Olvidaste la contraseña?</button>
+    <div class="mut" style="margin-top:10px;font-size:11px">Versión <span class="verApp"></span></div>
+  </div>
+</div>
+
+<!-- Selección de sede y fecha -->
+<div id="selToma" class="overlay" hidden>
+  <div class="ovbox wide">
+    <h2>¿Qué toma vas a trabajar?</h2>
+    <div class="mut">Cada sede y fecha se guarda por separado, así la información no se mezcla.</div>
+    <div id="tNueva">
+    <label class="f">Sede</label>
+    <select id="tSede"></select>
+    <input type="text" id="tSedeOtra" placeholder="Nombre de la sede" autocomplete="off" hidden style="margin-top:6px">
+    <label class="f">Fecha del conteo</label>
+    <input type="date" id="tFecha">
+    <button class="btn block" id="btnAbrirToma" style="margin-top:12px">Abrir toma</button>
+    </div>
+    <div class="mut" id="tSrvMsg" hidden style="margin-top:8px"></div>
+    <h3 style="margin:18px 0 4px" id="tListaTit">Tomas guardadas en este teléfono</h3>
+    <ul class="list" id="tLista"></ul>
+  </div>
+</div>
+
+<header>
+  <div class="brand" id="hdrBrand"><b>Toma de Inventario</b><span id="hdrSede">Sin sede</span></div>
+  <div style="display:flex;gap:6px;align-items:center;flex:0 0 auto"><div id="syncSt" class="pill" hidden style="cursor:pointer"></div><div id="hdrStatus" class="pill">Sin inventario</div></div>
+</header>
+<nav class="tabs">
+  <button data-tab="proceso" class="active">Inicio</button>
+  <button data-tab="escanear">Escanear</button>
+  <button data-tab="consulta">Consultar</button>
+  <button data-tab="cierre">Cierre</button>
+</nav>
+
+<main>
+  <div id="camBox" hidden>
+    <video id="video" playsinline muted></video>
+    <div class="aim" id="aim"></div>
+    <div class="camtop">
+      <button id="btnTorch" hidden title="Linterna">🔦</button>
+      <button id="btnZoom" hidden title="Zoom">1x</button>
+      <button id="btnCamSw" hidden title="Cambiar cámara">🔄</button>
+      <button id="btnCamClose">✕ Cerrar</button>
+    </div>
+    <div class="camlbl" id="camLbl"></div>
+  </div>
+<!-- ============ 1. INICIO ============ -->
+<section id="tab-proceso">
+  <div class="card">
+    <h3>Toma actual</h3>
+    <div class="tomaAct"><div><b id="tActSede"></b><span id="tActFecha"></span><span id="tActEstado" style="display:block;font-weight:700"></span></div><button class="btn sec" id="btnCambiarToma">⇄ Cambiar</button></div>
+    <label class="f">Inventarista / Analista</label>
+    <input type="text" id="inResp" placeholder="Nombre" autocomplete="off">
+  </div>
+
+  <div class="card">
+    <h3><span class="n">1</span>Reporte de Inventario</h3>
+    <div class="mut">Plade → Reporte de Inventario exportado a Excel justo antes de empezar a contar. Es el universo inicial; la app toma la hora en que se generó el reporte.</div>
+    <div id="invStatus" class="status">No cargado</div>
+    <button class="btn block" id="btnInv">📂 Cargar Reporte de Inventario</button>
+  </div>
+
+  <div class="card">
+    <h3>Varios equipos / respaldo</h3>
+    <div class="mut">Si varios inventaristas cuentan con teléfonos distintos, cada uno exporta su conteo y el analista los importa aquí. Se suman y conservan la hora de cada lectura.</div>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn sec" id="btnExpConteo">⬇ Exportar conteo</button>
+      <button class="btn sec" id="btnImpConteo">⬆ Importar conteo</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Cómo funciona</h3>
+    <ol class="steps">
+      <li>Antes de contar, carga el <b>Reporte de Inventario</b> de Plade.</li>
+      <li>En <b>Escanear</b> cuenta los productos: por lectura (+1) o escribiendo la cantidad.</li>
+      <li>Al terminar de contar, exporta el <b>Items Facturados</b> del día y cárgalo en <b>Cierre</b>. La app toma la existencia actual de cada producto vendido y valida las diferencias.</li>
+      <li>Exporta el resultado a Excel o compártelo por WhatsApp.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>Seguridad</h3>
+    <div class="mut" id="usrActual" style="margin-bottom:8px"></div>
+    <div class="grid2">
+      <button class="btn sec" id="btnCambiarPass">🔑 Mi contraseña</button>
+      <button class="btn sec" id="btnBloquear">🔒 Cerrar sesión</button>
+    </div>
+    <button class="btn sec block" id="btnUsuarios" style="margin-top:8px" hidden>👥 Usuarios</button>
+  </div>
+
+  <button class="btn danger block" id="btnReset">🗑 Eliminar esta toma</button>
+  <div class="mut" style="text-align:center;margin-top:14px">Toma de Inventario · versión <b class="verApp"></b></div>
+</section>
+
+<!-- ============ 2. ESCANEAR ============ -->
+<section id="tab-escanear" hidden>
+  <div class="warnbox" id="scanWarn" hidden></div>
+
+  <div class="card">
+    <div class="scanbar">
+      <input type="text" id="scan" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Escanee código…">
+      <button class="btn" id="btnCam" title="Cámara">📷</button>
+      <button class="btn sec" id="btnKbd" title="Teclado">⌨</button>
+    </div>
+    <label class="modo"><input type="checkbox" id="modoManual"> Escribir la cantidad en cada lectura</label>
+    <div class="qty" id="qtyRow">
+      <button id="qMinus">−</button>
+      <input type="number" id="qty" value="1" min="1" inputmode="numeric">
+      <button id="qPlus">+</button>
+      <label><input type="checkbox" id="qLock"> Mantener</label>
+    </div>
+    <div class="mut" style="margin-top:6px" id="qtyHelp"></div>
+  </div>
+
+  <div class="card">
+    <input type="search" id="sNombre" placeholder="🔎 Buscar por nombre o código (ej. omega)" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="mut" id="sNomInfo" style="margin-top:6px"></div>
+    <ul class="list buscador" id="sNomList"></ul>
+  </div>
+
+  <div class="card" id="last">
+    <div class="mut">Última lectura</div>
+    <div class="desc" id="lDesc">—</div>
+    <div class="mut" id="lBc"></div>
+    <div class="row" style="margin-top:8px;align-items:flex-end">
+      <div><div class="mut">Contado</div><div class="big" id="lCnt">0</div></div>
+      <div style="text-align:right;flex:0 0 auto;display:flex;gap:6px"><button class="btn sec" id="btnEditQty" hidden>✎ Cantidad</button><button class="btn danger" id="btnDelProd" hidden title="Quitar del conteo">🗑</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="kpis">
+      <div><b id="kProd">0</b><span>productos contados</span></div>
+      <div><b id="kUni">0</b><span>unidades</span></div>
+      <div><b id="kLect">0</b><span>lecturas</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:6px"><h3 style="margin:0">Lecturas recientes</h3>
+      <button class="btn sec" id="btnUndo" style="flex:0 0 auto;padding:8px 12px">↶ Deshacer</button></div>
+    <ul class="list" id="logList"></ul>
+  </div>
+</section>
+
+<!-- ============ CONSULTAR ============ -->
+<section id="tab-consulta" hidden>
+  <div class="card">
+    <div class="scanbar">
+      <input type="text" id="cq" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Escanee o busque…">
+      <button class="btn" id="btnCamQ" title="Cámara">📷</button>
+      <button class="btn sec" id="btnKbdQ" title="Teclado">⌨</button>
+    </div>
+    <div class="mut" style="margin-top:6px">Consulta la existencia del Reporte de Inventario y lo contado físicamente. Aquí las lecturas <b>no suman</b> al conteo.</div>
+  </div>
+  <div id="cqRes"></div>
+  <div class="card">
+    <input type="search" id="cNombre" placeholder="🔎 Buscar por nombre o código (ej. omega)" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="mut" id="cNomInfo" style="margin-top:6px"></div>
+    <ul class="list buscador" id="cNomList"></ul>
+  </div>
+</section>
+
+<!-- ============ CIERRE ============ -->
+<section id="tab-cierre" hidden>
+  <div class="card" id="cardEstado">
+    <h3>Estado de la toma</h3>
+    <div id="estToma" class="status"></div>
+    <button class="btn block" id="btnCerrarToma">🔒 Cerrar toma</button>
+  </div>
+
+  <div class="card">
+    <h3>Validar con Items Facturados</h3>
+    <div class="mut">Al terminar de contar, exporta de Plade el <b>Items Facturados</b> del día y cárgalo aquí. Trae lo vendido y la existencia actual de cada producto, y con eso se descuenta lo vendido durante la toma.</div>
+    <ul class="list" id="cortesList" style="margin:8px 0"></ul>
+    <button class="btn block" id="btnCorte">📂 Cargar Items Facturados</button>
+    <div class="mut" style="margin-top:6px">Opcional: si cargas uno también a mitad de la toma, la app afina los productos que se vendieron mientras se contaban.</div>
+  </div>
+
+  <div class="warnbox" id="pendWarn" hidden></div>
+
+  <div class="card" id="cardOculto" hidden>
+    <h3>🔒 Resultados ocultos</h3>
+    <div class="mut" id="ocultoMsg"></div>
+  </div>
+
+  <div class="card" id="cardRes">
+    <div id="expBtns">
+    <button class="btn block" id="btnShare" style="background:#25D366;font-size:16px;padding:14px">📲 Enviar por WhatsApp</button>
+    <div class="grid2" style="margin:8px 0 12px">
+      <button class="btn" id="btnExport">⬇ Excel completo</button>
+      <button class="btn" id="btnPdf">📄 PDF del conteo</button>
+    </div>
+    <label class="mut" style="display:flex;gap:8px;align-items:center;margin:-4px 0 6px"><input type="checkbox" id="pdfOK" checked style="width:20px;height:20px"> Incluir en el PDF los productos que cuadran (todo lo contado)</label>
+    <label class="mut" style="display:flex;gap:8px;align-items:center;margin:0 0 12px"><input type="checkbox" id="pdfNC" style="width:20px;height:20px"> Incluir en el PDF los productos con existencia que no se contaron</label>
+    </div>
+    <div class="valores" id="valores" hidden></div>
+    <div class="sum" id="sum"></div>
+  </div>
+
+  <div class="card" id="cardAj">
+    <h3>Ajustes para Plade</h3>
+    <div class="mut">Archivos CSV con el formato de carga de Plade: uno de <b>salida</b> (faltantes) y otro de <b>entrada</b> (sobrantes), por código y con la diferencia definitiva.</div>
+    <div id="ajInfo" class="status"></div>
+    <div class="grid2">
+      <button class="btn" id="btnAjSal" style="background:var(--bad)">⬇ Ajuste de SALIDA</button>
+      <button class="btn" id="btnAjEnt" style="background:var(--sob)">⬇ Ajuste de ENTRADA</button>
+      <button class="btn" id="btnWaSal" style="background:#25D366">📲 SALIDA por WhatsApp</button>
+      <button class="btn" id="btnWaEnt" style="background:#25D366">📲 ENTRADA por WhatsApp</button>
+    </div>
+    <button class="btn block" id="btnWaAj" style="background:#128C7E;margin-top:8px">📲 Enviar los dos ajustes por WhatsApp</button>
+    <label class="mut" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="ajNC" style="width:20px;height:20px"> Incluir en la salida los productos con existencia que no se contaron (solo en toma completa)</label>
+    <label class="mut" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="ajNoInv" checked style="width:20px;height:20px"> Incluir en la entrada lo contado sin existencia en sistema</label>
+  </div>
+
+  <div class="card" id="cardTbl">
+    <input type="search" id="fSearch" placeholder="Buscar producto o código…">
+    <div class="mut" style="margin-top:6px">Toca un producto para ver su ficha, recontarlo o quitarlo del conteo.</div>
+    <div class="chips" id="chips"></div>
+    <div class="mut" id="tblInfo"></div>
+    <table class="tbl">
+      <thead><tr><th>Producto</th><th>Inicial</th><th>Vend.</th><th>Teórico</th><th>Contado</th><th>Dif.</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="note">
+      <b>Cómo se calcula:</b> Vendido en la toma = Inventario inicial − Existencia actual (de Items Facturados).<br>
+      Como Items Facturados no trae la hora de cada venta, no se sabe si un producto se vendió antes o después de contarlo. Por eso el teórico es un rango:
+      entre la existencia final (si se vendió antes de contarlo) y la inicial (si se vendió después).
+      Ej.: inicial 10, vendidos 2 → teórico 8–10. Si contaste 8, 9 o 10, el producto <b>cuadra</b>. Si contaste 7, es <b>faltante de 1</b> (la diferencia mínima comprobada).<br>
+      <b>Vend.</b> negativo = entró mercancía durante la toma. Lo ideal es no recibir mercancía ni hacer traslados mientras se cuenta.</div>
+  </div>
+</section>
+</main>
+
+<!-- Diálogo de columnas (solo para archivos que no son de Plade) -->
+<dialog id="dlgMap">
+  <div class="hd" id="mapTitle">Columnas del archivo</div>
+  <div class="bd">
+    <div class="mut" id="mapInfo"></div>
+    <div id="mapFields"></div>
+    <div style="overflow-x:auto"><table class="prev" id="mapPrev"></table></div>
+  </div>
+  <div class="ft">
+    <button class="btn sec" id="mapCancel">Cancelar</button>
+    <button class="btn" id="mapOk">Cargar</button>
+  </div>
+</dialog>
+
+<!-- Diálogo de cantidad manual -->
+<dialog id="dlgQty">
+  <div class="hd">Cantidad contada</div>
+  <div class="bd">
+    <div id="qDesc" style="font-weight:700;font-size:16px"></div>
+    <div class="mut" id="qInfo"></div>
+    <input type="number" id="qVal" inputmode="decimal" min="0" placeholder="0">
+    <div class="mut" style="margin-top:8px"><b>Sumar</b> agrega esta cantidad a lo ya contado. <b>Fijar total</b> deja el contado exactamente en este número (útil para corregir).</div>
+  </div>
+  <div class="ft">
+    <button class="btn sec" id="qCancel">Cancelar</button>
+    <button class="btn sec" id="qSet">Fijar total</button>
+    <button class="btn" id="qAdd">Sumar</button>
+  </div>
+</dialog>
+
+<!-- Administración de usuarios -->
+<dialog id="dlgUsr">
+  <div class="hd">Usuarios de este teléfono</div>
+  <div class="bd">
+    <ul class="list" id="usrLista"></ul>
+    <h3 style="margin:14px 0 4px;font-size:14px;color:var(--pri)">Agregar o editar usuario</h3>
+    <input type="text" id="nuNombre" placeholder="Nombre y apellido" autocomplete="off">
+    <input type="text" id="nuUser" placeholder="Usuario" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:6px">
+    <input type="password" id="nuPw" placeholder="Contraseña (mín. 4; vacía = no cambiarla)" autocomplete="off" style="margin-top:6px">
+    <label class="f">Perfil</label>
+    <select id="nuRol"><option value="inv">Inventarista</option><option value="gerente">Gerente</option><option value="admin">Administrador</option></select>
+    <label class="f">Permisos (se pueden ajustar por usuario)</label>
+    <div id="nuPerms"></div>
+  </div>
+  <div class="ft">
+    <button class="btn sec" id="usrCerrar">Cerrar</button>
+    <button class="btn" id="usrGuardar">Guardar usuario</button>
+  </div>
+</dialog>
+
+<!-- Diálogo de contraseña para acciones protegidas -->
+<dialog id="dlgClave">
+  <div class="hd" id="clvTitulo">Contraseña requerida</div>
+  <div class="bd">
+    <div id="clvMsg" style="font-size:14px"></div>
+    <input type="text" id="clvUser" placeholder="Usuario autorizado" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:12px;text-align:center;font-size:17px">
+    <input type="password" id="clvPw" placeholder="Contraseña" autocomplete="off" style="margin-top:12px;text-align:center;font-size:18px">
+  </div>
+  <div class="ft">
+    <button class="btn sec" id="clvCancel">Cancelar</button>
+    <button class="btn danger" id="clvOk" style="background:var(--bad);color:#fff">Eliminar</button>
+  </div>
+</dialog>
+
+<!-- Envío por WhatsApp: los archivos se preparan primero y se envían con un toque -->
+<dialog id="dlgShare">
+  <div class="hd" style="background:#128C7E">Enviar por WhatsApp</div>
+  <div class="bd">
+    <div id="shInfo" class="mut">Preparando archivos…</div>
+    <pre id="shTexto" style="white-space:pre-wrap;font:13px/1.4 system-ui;background:#f2f6f8;border-radius:8px;padding:10px;margin:10px 0 0"></pre>
+  </div>
+  <div class="ft" style="flex-direction:column">
+    <button class="btn block" id="shPdf" style="background:#25D366" disabled>📄 Enviar PDF del conteo</button>
+    <button class="btn block" id="shXls" style="background:#25D366" disabled>📊 Enviar Excel completo</button>
+    <button class="btn block" id="shAmbos" style="background:#128C7E" disabled>📎 Enviar PDF y Excel</button>
+    <button class="btn block" id="shAjustes" style="background:#128C7E" disabled>🔁 Enviar ajustes para Plade (salida y entrada)</button>
+    <button class="btn sec block" id="shTxt">💬 Enviar solo el resumen (texto)</button>
+    <button class="btn sec block" id="shCerrar">Cerrar</button>
+  </div>
+</dialog>
+
+<input type="file" id="fileIn" accept=".xlsx,.xls,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="lib/xlsx.bundle.js" defer></script>
+<script>
+"use strict";
+const VERSION = "15.0";
+// Modo servidor: la app se sirve desde el servidor central (config.js define TI_API). Sin él funciona como antes, solo local.
+try { if (typeof window.TI_API === "string") localStorage.setItem("TI_API", window.TI_API); else window.TI_API = localStorage.getItem("TI_API") || undefined; } catch (e) {}
+const SRV = typeof window.TI_API === "string" && location.protocol.startsWith("http");
+const API = SRV ? new URL(window.TI_API.replace(/\/?$/, "/"), location.href).href : "";
+const $ = s => document.querySelector(s);
+const r3 = n => Math.round(n * 1000) / 1000;
+const fmt = n => (n == null || n === "") ? "—" : r3(n).toLocaleString("es-VE");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fechaHora = t => t ? new Date(t).toLocaleString("es-VE", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", second:"2-digit"}) : "";
+const hora = t => t ? new Date(t).toLocaleTimeString("es-VE", {hour:"2-digit", minute:"2-digit"}) : "";
+const fecha = t => t ? new Date(t).toLocaleDateString("es-VE", {day:"2-digit", month:"2-digit", year:"numeric"}) : "";
+const mismoDia = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+
+/* ---------- Almacenamiento (IndexedDB) ---------- */
+const DB = {
+  db: null,
+  open() { return new Promise((res, rej) => { const r = indexedDB.open("toma-inventario", 2);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains("kv")) r.result.createObjectStore("kv"); };
+    r.onsuccess = () => { this.db = r.result; res(); }; r.onerror = () => rej(r.error); }); },
+  get(k) { k = nsKey(k); return new Promise((res, rej) => { const q = this.db.transaction("kv").objectStore("kv").get(k);
+    q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); },
+  set(k, v) { const kk = nsKey(k), tid = TOMA && TOMA.id; return new Promise((res, rej) => { const tx = this.db.transaction("kv", "readwrite");
+    tx.objectStore("kv").put(v, kk); tx.oncomplete = () => { res(); marcarPend(tid, k); }; tx.onerror = () => rej(tx.error); }); },
+  delPrefix(p) { return new Promise((res, rej) => { const tx = this.db.transaction("kv", "readwrite");
+    const q = tx.objectStore("kv").openCursor(IDBKeyRange.bound(p, p + "￿"));
+    q.onsuccess = () => { const c = q.result; if (c) { c.delete(); c.continue(); } }; tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); },
+  del(keys) { return new Promise((res, rej) => { const tx = this.db.transaction("kv", "readwrite"), st = tx.objectStore("kv");
+    keys.forEach(k => st.delete(nsKey(k))); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); },
+  clear() { return new Promise((res, rej) => { const tx = this.db.transaction("kv", "readwrite");
+    tx.objectStore("kv").clear(); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+};
+// Cada toma (sede + fecha) guarda sus datos con su propio prefijo; "g:" = datos generales
+let TOMA = null;
+// En modo servidor cada usuario tiene su propio conteo en el teléfono (cada quien ve solo lo que cuenta)
+const nsKey = k => k.startsWith("g:") || k.startsWith("raw:") ? k.replace(/^raw:/, "") : (TOMA ? TOMA.id + ":" + (SRV && k === "cnt" && USER ? "cnt@" + USER.u : k) : k);
+const CLAVES_TOMA = ["meta", "inv", "cortes", "cnt"];
+
+/* ---------- Estado ----------
+   inv:    {archivo, t, cargado, empresa, items:{clave:{cod,bc,desc,stock,costo}}, n, unidades, dup}
+   cortes: [{id, t, archivo, ventas, exist, total, vend, sinMatch}]  Items Facturados cargados (normalmente uno, al terminar)
+   cnt:    {conteo:{clave:cant}, log:[{id,t,k,bc,q,o}], seq, raw:{clave:bc}}                                   */
+let S = nuevoEstado(), IDX = {};
+function nuevoEstado() { return { meta: {sede:"", resp:""}, inv: null, cortes: [], cnt: {conteo:{}, log:[], seq:0, raw:{}} }; }
+let saveTimer = null;
+function saveCount(now) {
+  clearTimeout(saveTimer);
+  const go = () => DB.set("cnt", S.cnt).then(tocarToma).catch(e => toast("Error guardando: " + e.message));
+  if (now) return go(); saveTimer = setTimeout(go, 250);
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveCount(true); });
+window.addEventListener("pagehide", () => saveCount(true));
+
+/* ---------- Utilidades de datos ---------- */
+function cellStr(v) {
+  if (v == null) return "";
+  if (typeof v === "number") return Number.isInteger(v) ? v.toFixed(0) : String(v);
+  return String(v).trim();
+}
+// Clave de comparación: sin espacios, mayúsculas y sin ceros a la izquierda (Excel suele borrarlos)
+function normBC(v) {
+  let s = cellStr(v).replace(/\s+/g, "").toUpperCase();
+  if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, "");   // 7591234567890.0 (Excel/CSV)
+  s = s.replace(/\./g, "");                              // tolerancia con puntos: 7.591.234.567.890 → 7591234567890
+  if (/^\d+$/.test(s)) s = s.replace(/^0+/, "") || "0";
+  return s;
+}
+function parseNum(v) {
+  if (typeof v === "number") return v;
+  let s = String(v ?? "").trim().replace(/\s/g, "");
+  if (!s) return 0;
+  const lc = s.lastIndexOf(","), ld = s.lastIndexOf(".");
+  if (lc > -1 && ld > -1) s = lc > ld ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+  else if (lc > -1) s = (s.split(",").length === 2 && s.length - lc - 1 !== 3) ? s.replace(",", ".") : s.replace(/,/g, "");
+  else if (ld > -1 && (s.split(".").length > 2 || /^-?\d{1,3}\.\d{3}$/.test(s))) s = s.replace(/\./g, "");
+  const n = parseFloat(s.replace(/[^\d.\-]/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+const normH = h => String(h ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+
+// Índice código escaneado → producto. La barra tiene prioridad; el CÓDIGO sirve para los productos sin barra.
+function construirIndice() {
+  IDX = {};
+  if (!S.inv) return;
+  for (const k in S.inv.items) IDX[k] = k;
+  for (const k in S.inv.items) { const b = normBC(S.inv.items[k].bc); if (b) IDX[b] = k; }
+}
+// Limpia lo que envían algunos lectores: prefijos AIM (]E0, ]C1, ]Q3…) y caracteres de control
+const limpiarCodigo = v => cellStr(v).replace(/[\x00-\x1F\x7F]/g, "").trim().replace(/^\][A-Za-z][0-9A-Za-z]/, "");
+function variantesCodigo(code) {
+  const s = limpiarCodigo(code), n = normBC(s), out = [n];
+  const g = s.replace(/[()\s]/g, "").match(/^01(\d{14})/);          // GS1: (01)GTIN-14 en QR / DataBar / DataMatrix
+  if (g) out.push(normBC(g[1]));
+  const d = s.replace(/\D/g, "");
+  if ([8, 12, 13, 14].includes(d.length) && checksumOK(d)) out.push(normBC(d.slice(0, -1)));   // guardado sin dígito verificador
+  return [...new Set(out)];
+}
+const claveDe = code => { for (const c of variantesCodigo(code)) if (IDX[c]) return IDX[c]; return null; };
+const item = k => (S.inv && S.inv.items[k]) || null;
+
+/* ---------- Lectura de reportes ---------- */
+const MESES = {ENE:0,FEB:1,MAR:2,ABR:3,MAY:4,JUN:5,JUL:6,AGO:7,SEP:8,SEPT:8,SET:8,OCT:9,NOV:10,DIC:11};
+function metaReporte(rows) {
+  let t = null, desde = null, hasta = null, empresa = "";
+  for (let i = 0; i < Math.min(rows.length, 20); i++) for (const c of rows[i] || []) {
+    const s = cellStr(c); if (!s) continue;
+    if (!t) { const m = s.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (m) { t = new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +(m[6] || 0)).getTime();
+               empresa = s.split("\n")[0].split(/\s-\s/)[0].replace(/,?\s*C\.?\s*A\.?\s*$/i, "").trim(); } }
+    const d = s.toUpperCase().match(/DESDE:?\s*(\d{1,2})\s+DE\s+([A-Z]+)\.?\s+DE\s+(\d{4}).*HASTA:?\s*(\d{1,2})\s+DE\s+([A-Z]+)\.?\s+DE\s+(\d{4})/);
+    if (d) { desde = new Date(+d[3], MESES[d[2]] ?? 0, +d[1]).getTime(); hasta = new Date(+d[6], MESES[d[5]] ?? 0, +d[4]).getTime(); }
+  }
+  return {t, desde, hasta, empresa};
+}
+// Formatos conocidos (Plade y el propio export de la app): se cargan sin preguntar columnas
+const PERFILES = {
+  inventario: {nombre: "Reporte de Inventario", need: ["codigo","barra","producto","existencia"],
+               map: {cod:"codigo", bc:"barra", desc:"producto", stock:"existencia", costo:"costo uni"}},
+  ventas:     {nombre: "Items Facturados", need: ["codigo","cod barra","producto","cantidad"],
+               map: {cod:"codigo", bc:"cod barra", desc:"producto", qty:"cantidad", exist:"existencia", costo:"costo"}},
+  conteo:     {nombre: "Conteo exportado", need: ["fecha iso","codigo de barras","cantidad"],
+               map: {t:"fecha iso", cod:"codigo", bc:"codigo de barras", qty:"cantidad", sede:"sede", ftoma:"fecha toma"}}
+};
+function detectarPerfil(rows) {
+  for (let i = 0; i < Math.min(rows.length, 40); i++) {
+    const H = (rows[i] || []).map(normH);
+    for (const p in PERFILES) if (PERFILES[p].need.every(n => H.includes(n))) {
+      const m = {}; for (const [f, h] of Object.entries(PERFILES[p].map)) m[f] = H.indexOf(h);
+      return {perfil: p, hi: i, map: m};
+    }
+  }
+  return null;
+}
+// Detección genérica para archivos que no son de Plade
+const DETECT = {
+  bc:    h => /barra|ean|upc|barcode/.test(h),
+  cod:   h => !/barra|ean|upc/.test(h) && /^(cod|codigo|referencia|ref|sku|item|codigo interno|cod interno|codigo producto|codigo articulo)( .*)?$/.test(h),
+  desc:  h => /descrip|producto|nombre|articulo|material/.test(h) && !/cod/.test(h),
+  stock: h => /exist|stock|cantidad|^cant|inventario|disponible|saldo|unidades/.test(h),
+  qty:   h => /cantidad|^cant|vendid|unidades|conteo/.test(h),
+  exist: h => /^existencia$|^existencia actual|^stock$|^stock actual/.test(h),
+  costo: h => /costo|precio|pvp/.test(h)
+};
+function filaEncabezado(rows) {
+  let best = 0, bestScore = -1;
+  for (let i = 0; i < Math.min(rows.length, 40); i++) {
+    const H = (rows[i] || []).map(normH); let sc = 0;
+    for (const f in DETECT) if (H.some(h => h && DETECT[f](h))) sc++;
+    if (sc > bestScore) { bestScore = sc; best = i; }
+  }
+  return best;
+}
+function esperarXLSX() {
+  return new Promise((res, rej) => { let n = 0; (function w() { if (window.XLSX) return res(window.XLSX);
+    if (++n > 100) return rej(new Error("No se pudo cargar el lector de Excel. Abra la app con internet una vez.")); setTimeout(w, 100); })(); });
+}
+async function leerArchivo(file) {
+  const X = await esperarXLSX();
+  const wb = X.read(await file.arrayBuffer(), {type: "array", raw: /\.(csv|txt)$/i.test(file.name)});
+  return X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, raw: true, defval: ""});
+}
+const CAMPOS = {
+  inventario: [["bc","Código de barras",1],["cod","Código interno",0],["desc","Descripción",0],["stock","Existencia",1],["costo","Costo unitario",0]],
+  ventas:     [["cod","Código interno",0],["bc","Código de barras",0],["desc","Descripción",0],["qty","Cantidad vendida",1],["exist","Existencia actual (opcional)",0]],
+  conteo:     [["bc","Código de barras",1],["qty","Cantidad contada",1]]
+};
+function pedirArchivo() {
+  return new Promise(res => { const fi = $("#fileIn"); fi.value = ""; fi.onchange = () => res(fi.files[0] || null); fi.click(); });
+}
+async function importar(modo, titulo) {
+  const file = await pedirArchivo(); if (!file) return null;
+  let rows;
+  try { rows = await leerArchivo(file); } catch (e) { toast("No se pudo leer: " + e.message); return null; }
+  rows = rows.filter(r => r.some(c => cellStr(c) !== ""));
+  if (!rows.length) { toast("El archivo está vacío"); return null; }
+  const meta = metaReporte(rows);
+  const p = detectarPerfil(rows);
+  if (p && p.perfil !== modo) { toast(`Este archivo es un "${PERFILES[p.perfil].nombre}", no un "${PERFILES[modo].nombre}".`); return null; }
+  if (p) return {file, body: rows.slice(p.hi + 1), map: p.map, meta, plade: true};
+  // Formato desconocido: el usuario indica las columnas
+  const hi = filaEncabezado(rows), headers = rows[hi].map((h, i) => cellStr(h) || `Columna ${i + 1}`), H = headers.map(normH);
+  const campos = CAMPOS[modo], det = {}, usados = [];
+  for (const [k] of campos) { const i = H.findIndex((h, ix) => h && DETECT[k](h) && !usados.includes(ix)); det[k] = i; if (i >= 0) usados.push(i); }
+  const body = rows.slice(hi + 1);
+  $("#mapTitle").textContent = titulo;
+  $("#mapInfo").innerHTML = `<b>${esc(file.name)}</b> · ${body.length.toLocaleString("es-VE")} filas. No es un formato conocido de Plade: indica qué columna corresponde a cada dato.`;
+  const opts = `<option value="-1">— No usar —</option>` + headers.map((h, i) => `<option value="${i}">${esc(h)}</option>`).join("");
+  $("#mapFields").innerHTML = campos.map(([k, lbl, req]) => `<label class="f">${lbl}${req ? " *" : ""}</label><select data-k="${k}">${opts}</select>`).join("");
+  campos.forEach(([k]) => { $(`#mapFields select[data-k=${k}]`).value = String(det[k] ?? -1); });
+  $("#mapPrev").innerHTML = "<tr>" + headers.map(h => `<th>${esc(h)}</th>`).join("") + "</tr>" +
+    body.slice(0, 5).map(r => "<tr>" + headers.map((_, i) => `<td>${esc(cellStr(r[i]))}</td>`).join("") + "</tr>").join("");
+  const dlg = $("#dlgMap"); dlg.showModal();
+  const map = await new Promise(res => {
+    $("#mapCancel").onclick = () => { dlg.close(); res(null); };
+    $("#mapOk").onclick = () => {
+      const m = {}; dlg.querySelectorAll("select").forEach(s => m[s.dataset.k] = +s.value);
+      const falta = campos.filter(([k, , req]) => req && m[k] < 0).map(c => c[1]);
+      if (modo === "ventas" && m.cod < 0 && m.bc < 0) falta.push("Código interno o Código de barras");
+      if (falta.length) return toast("Falta indicar: " + falta.join(", "));
+      dlg.close(); res(m);
+    };
+  });
+  return map ? {file, body, map, meta, plade: false} : null;
+}
+const col = (r, i) => i >= 0 ? r[i] : "";
+
+function construirInventario(imp) {
+  const {file, body, map: m, meta} = imp, items = {}; let dup = 0, unidades = 0;
+  for (const r of body) {
+    const stRaw = col(r, m.stock); if (cellStr(stRaw) === "") continue;     // filas de totales / vacías
+    const cod = cellStr(col(r, m.cod)), bc = cellStr(col(r, m.bc));
+    const k = normBC(cod) || normBC(bc); if (!k) continue;
+    const st = parseNum(stRaw); unidades += st;
+    if (items[k]) { items[k].stock = r3(items[k].stock + st); dup++; if (!items[k].bc && bc) items[k].bc = bc; continue; }
+    items[k] = {cod, bc, desc: cellStr(col(r, m.desc)), stock: st, costo: m.costo >= 0 ? parseNum(r[m.costo]) : null};
+  }
+  return {archivo: file.name, t: meta.t || Date.now(), tReporte: !!meta.t, cargado: Date.now(), empresa: meta.empresa,
+          items, n: Object.keys(items).length, unidades: r3(unidades), dup};
+}
+function construirVentas(imp) {
+  const {file, body, map: m, meta} = imp, ventas = {}, sinMatch = [], conExist = m.exist >= 0, exist = conExist ? {} : null; let total = 0;
+  for (const r of body) {
+    const qRaw = col(r, m.qty); if (cellStr(qRaw) === "") continue;
+    const cod = cellStr(col(r, m.cod)), bc = cellStr(col(r, m.bc));
+    if (!normBC(cod) && !normBC(bc)) continue;                              // fila TOTAL
+    const q = parseNum(qRaw); total += q;
+    const k = (item(normBC(cod)) && normBC(cod)) || claveDe(bc) || claveDe(cod);
+    if (!k) { sinMatch.push({cod, bc, desc: cellStr(col(r, m.desc)), q, costo: m.costo >= 0 && cellStr(r[m.costo]) !== "" ? parseNum(r[m.costo]) : null}); continue; }
+    ventas[k] = r3((ventas[k] || 0) + q);
+    if (conExist && cellStr(r[m.exist]) !== "") exist[k] = parseNum(r[m.exist]);
+  }
+  const v = {archivo: file.name, t: meta.t || Date.now(), tReporte: !!meta.t, cargado: Date.now(),
+          desde: meta.desde, hasta: meta.hasta, ventas, exist, total: r3(total), sinMatch};
+  // Unidades vendidas desde que se generó el Reporte de Inventario
+  v.vend = r3(Object.keys(ventas).reduce((a, k) => a + Math.max(0, vendidoHasta(v, k)), 0));
+  return v;
+}
+// Vendido desde el Reporte de Inventario hasta el momento del Items Facturados.
+// Con la existencia actual de Plade: inicial − actual (no le afectan las ventas hechas antes del inventario).
+// Sin esa columna: la cantidad vendida del reporte.
+function vendidoHasta(corte, k) {
+  if (!corte || corte.esInicio) return 0;
+  const it = item(k); if (!it) return 0;
+  if (corte.exist) return k in corte.exist ? r3(it.stock - corte.exist[k]) : 0;
+  return corte.ventas[k] || 0;
+}
+// Valida que el reporte de ventas sea del día de la toma
+function validarPeriodo(v) {
+  if (!v.desde || !S.inv) return true;
+  if (!mismoDia(v.desde, S.inv.t) || !mismoDia(v.hasta, S.inv.t))
+    return confirm(`Este Items Facturados es del ${fecha(v.desde)}${v.hasta !== v.desde ? " al " + fecha(v.hasta) : ""}, pero el inventario es del ${fecha(S.inv.t)}.\n\nDebe ser SOLO del día de la toma. ¿Cargarlo de todas formas?`);
+  return true;
+}
+
+/* ---------- Pestañas ---------- */
+document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => irA(b.dataset.tab));
+function irA(tab) {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll("main>section").forEach(s => s.hidden = s.id !== "tab-" + tab);
+  cerrarCamara();
+  if (tab === "escanear") { renderScan(); setTimeout(() => $("#scan").focus(), 50); }
+  if (tab === "consulta") setTimeout(() => $("#cq").focus(), 50);
+  if (tab === "cierre") renderCierre();
+  window.scrollTo(0, 0);
+}
+function listoParaContar() {
+  if (!S.inv) return "Primero carga el Reporte de Inventario (pestaña Inicio).";
+  return "";
+}
+
+/* ---------- Inicio ---------- */
+function renderProceso() {
+  $("#inResp").value = S.meta.resp || "";
+  if (TOMA) { $("#tActSede").textContent = TOMA.sede; $("#tActFecha").textContent = "Fecha del conteo: " + fechaISO(TOMA.fecha);
+    $("#tActEstado").innerHTML = cerrada() ? `<span style="color:var(--bad)">🔒 Cerrada el ${fechaHora(S.meta.cerrada.t)}</span>` : `<span style="color:var(--ok)">🟢 Abierta</span>`; }
+  $("#inResp").disabled = cerrada(); $("#btnInv").disabled = cerrada() || !puede("cargar"); $("#btnImpConteo").disabled = cerrada();
+  const u = S.inv, st = $("#invStatus");
+  st.classList.toggle("on", !!u);
+  st.innerHTML = u ? `✅ <b>${esc(u.archivo)}</b><br>Generado: <b>${fechaHora(u.t)}</b>${u.tReporte ? "" : " (hora de carga; el archivo no trae hora)"}<br>
+      ${u.n.toLocaleString("es-VE")} productos${u.ciego ? " · conteo a ciegas (sin existencias del sistema)" : ` · ${fmt(u.unidades)} unidades`}${u.dup ? ` · ${u.dup} códigos repetidos sumados` : ""}${SRV ? "<br>☁ Recibido del servidor central" : ""}`
+    : SRV && !puede("cargar") ? "Aún no cargado. Se descarga solo cuando el administrador lo suba (necesitas conexión)." : "No cargado";
+  $("#btnInv").textContent = u ? "📂 Reemplazar Reporte de Inventario" : "📂 Cargar Reporte de Inventario";
+  $("#btnInv").hidden = SRV && !puede("cargar");
+  renderHeader();
+}
+function renderHeader() {
+  $("#hdrSede").textContent = TOMA ? [TOMA.sede, fechaISO(TOMA.fecha), S.meta.resp].filter(Boolean).join(" · ") : "Sin toma";
+  const n = S.cnt.log.length;
+  $("#hdrStatus").textContent = !S.inv ? "Sin inventario" : S.cortes.length ? `${n} lecturas · validado` : n ? `${n} lecturas` : "Listo para contar";
+}
+$("#inResp").oninput = e => { S.meta.resp = e.target.value; DB.set("meta", S.meta); renderHeader(); };
+$("#btnInv").onclick = async () => {
+  if (bloqueada()) return;
+  if (!puede("cargar")) return toast("Tu usuario no tiene permiso para cargar reportes");
+  if (S.inv && !confirm("¿Reemplazar el Reporte de Inventario? El conteo se conserva, pero los Items Facturados cargados se borran.")) return;
+  const imp = await importar("inventario", "Reporte de Inventario"); if (!imp) return;
+  const inv = construirInventario(imp);
+  if (!inv.n) return toast("No se encontraron productos en el archivo");
+  // Que el reporte corresponda a la sede y la fecha de esta toma
+  if (inv.tReporte && diaISO(inv.t) !== TOMA.fecha &&
+      !confirm(`El Reporte de Inventario es del ${fecha(inv.t)} y esta toma es del ${fechaISO(TOMA.fecha)}.\n\n¿Cargarlo de todas formas?`)) return;
+  if (inv.empresa && !coincideSede(inv.empresa, TOMA) &&
+      !confirm(`El Reporte de Inventario es de "${inv.empresa}" y esta toma es de "${TOMA.sede}".\n\n¿Cargarlo de todas formas?`)) return;
+  S.inv = inv; construirIndice(); S.cortes = [];
+  await Promise.all([DB.set("inv", S.inv), DB.set("cortes", [])]);
+  tocarToma(); renderProceso(); toast(`Inventario cargado: ${S.inv.n.toLocaleString("es-VE")} productos`);
+};
+$("#btnReset").onclick = async () => {
+  if (!TOMA) return;
+  if (!await pedirClave("Eliminar toma", `Se eliminará la toma de <b>${esc(TOMA.sede)}</b> del ${fechaISO(TOMA.fecha)}.<br>Autoriza un usuario con permiso para cerrar y eliminar tomas.`, "🗑 Eliminar", "cerrar")) return;
+  if (!confirm(`Se borrará la toma de ${TOMA.sede} del ${fechaISO(TOMA.fecha)}: inventario, conteo e Items Facturados. ¿Ya exportaste el resultado?`)) return;
+  if (!confirm("Confirma: ¿eliminar esta toma?")) return;
+  await eliminarToma(TOMA.id); toast("Toma eliminada"); mostrarSelector();
+};
+$("#btnExpConteo").onclick = async () => {
+  const X = await esperarXLSX().catch(e => toast(e.message)); if (!X) return;
+  if (!S.cnt.log.length) return toast("Aún no hay conteo");
+  const aoa = [["Fecha ISO", "Hora", "Codigo", "Codigo de Barras", "Descripcion", "Cantidad", "Origen", "Sede", "Fecha toma"]];
+  S.cnt.log.forEach(l => { const it = item(l.k); aoa.push([new Date(l.t).toISOString(), fechaHora(l.t), it ? it.cod : "", l.bc, it ? it.desc : "SIN EXISTENCIA EN SISTEMA", l.q, l.o, TOMA.sede, TOMA.fecha]); });
+  const wb = X.utils.book_new(); const ws = X.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{wch:24},{wch:20},{wch:16},{wch:16},{wch:42},{wch:9},{wch:12}];
+  X.utils.book_append_sheet(wb, ws, "Conteo");
+  await entregar(wb, `Conteo_${slug(sedeCorta())}_${TOMA.fecha}_${slug(S.meta.resp)}_${stamp()}.xlsx`);
+};
+$("#btnImpConteo").onclick = async () => {
+  if (bloqueada()) return;
+  const falta = listoParaContar(); if (falta) return toast(falta);
+  const imp = await importar("conteo", "Importar conteo de otro equipo"); if (!imp) return;
+  const m = imp.map; let n = 0, u = 0; const ahora = Date.now();
+  const r1 = imp.body.find(r => m.sede >= 0 && cellStr(r[m.sede]));
+  if (r1 && (cellStr(r1[m.sede]) !== TOMA.sede || cellStr(r1[m.ftoma]) !== TOMA.fecha) &&
+      !confirm(`Este conteo es de "${cellStr(r1[m.sede])}" del ${fechaISO(cellStr(r1[m.ftoma]))}, y esta toma es de "${TOMA.sede}" del ${fechaISO(TOMA.fecha)}.\n\n¿Importarlo de todas formas?`)) return;
+  for (const r of imp.body) {
+    const bc = cellStr(col(r, m.bc)), cod = cellStr(col(r, m.cod)), q = parseNum(col(r, m.qty));
+    if ((!normBC(bc) && !normBC(cod)) || !q) continue;
+    const t = m.t >= 0 ? (Date.parse(cellStr(r[m.t])) || ahora) : ahora;
+    const k = (item(normBC(cod)) && normBC(cod)) || claveDe(bc) || "?" + normBC(bc);
+    registrarClave(k, bc || cod, q, "importado", t); n++; u += q;
+  }
+  S.cnt.log.sort((a, b) => a.t - b.t);
+  saveCount(true); renderHeader();
+  toast(`Importadas ${n} lecturas (${fmt(u)} unidades) y sumadas al conteo`);
+};
+
+/* ---------- Escanear ---------- */
+const scanIn = $("#scan");
+function qty() { const v = parseNum($("#qty").value); return v > 0 ? v : 1; }
+$("#qMinus").onclick = () => { $("#qty").value = Math.max(1, qty() - 1); };
+$("#qPlus").onclick = () => { $("#qty").value = qty() + 1; };
+// Botón de teclado: ⌨ (oculto, para lector) → 123 (numérico) → ABC (letras)
+function tecladoCiclo(inp, btn) {
+  const modos = [["none", "⌨", "Teclado oculto (modo lector)"], ["numeric", "123", "Teclado numérico"], ["text", "ABC", "Teclado con letras"]];
+  btn.onclick = () => {
+    const i = modos.findIndex(m => m[0] === inp.getAttribute("inputmode")), [m, l, msg] = modos[(i + 1) % modos.length];
+    inp.setAttribute("inputmode", m); btn.textContent = l; btn.classList.toggle("sec", m === "none");
+    inp.blur(); setTimeout(() => inp.focus(), 60); toast(msg);
+  };
+}
+tecladoCiclo(scanIn, $("#btnKbd"));
+scanIn.addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); procesarEntrada(scanIn.value); scanIn.value = ""; }
+});
+function procesarEntrada(v, origen) {
+  v = limpiarCodigo(v); if (!v || $("#dlgQty").open) return;
+  if (bloqueada()) return;
+  const falta = listoParaContar(); if (falta) return toast(falta);
+  const k = claveDe(v);
+  const pareceCodigo = !/\s/.test(v) && /\d/.test(v);
+  if (k || pareceCodigo) {
+    contar(k || "?" + normBC(v), v, origen || (scanIn.getAttribute("inputmode") === "none" ? "lector" : "teclado")); return; }
+  $("#sNombre").value = v; buscarEscanear();
+}
+// Modo de conteo: +1 (o la cantidad indicada) por lectura, o escribir la cantidad
+const modoManual = () => $("#modoManual").checked;
+function contar(k, bc, origen, despues) {
+  if (modoManual()) return abrirCantidad(k, bc, origen, despues);
+  registrarClave(k, bc, qty(), origen); if (despues) despues();
+}
+let qCtx = null;
+function abrirCantidad(k, bc, origen, despues) {
+  if (bloqueada()) return;
+  const it = item(k), cur = S.cnt.conteo[k] || 0;
+  qCtx = {k, bc, origen, despues};
+  $("#qDesc").textContent = it ? (it.desc || it.cod) : "Sin existencia en sistema (se marcará sobrante)";
+  $("#qInfo").textContent = `${it ? (it.bc || it.cod) : bc} · Contado hasta ahora: ${fmt(cur)}`;
+  $("#qVal").value = ""; $("#dlgQty").showModal(); setTimeout(() => $("#qVal").focus(), 60);
+}
+function cerrarCantidad() { $("#dlgQty").close(); qCtx = null; setTimeout(() => scanIn.focus(), 80); }
+function aplicarCantidad(fijar) {
+  if (!qCtx) return;
+  const txt = $("#qVal").value.trim(), v = parseNum(txt);
+  if (txt === "" || v < 0) return toast("Escribe la cantidad");
+  const {k, bc, origen, despues} = qCtx, cur = S.cnt.conteo[k] || 0, ya = k in S.cnt.conteo;
+  const q = fijar ? r3(v - cur) : v;
+  if (!fijar && v === 0) return toast("Para sumar, la cantidad debe ser mayor que 0. Usa \"Fijar total\" para dejarlo en 0.");
+  if (fijar && q === 0 && ya) { cerrarCantidad(); return toast(`El contado ya era ${fmt(v)}`); }
+  cerrarCantidad(); registrarClave(k, bc, q, fijar ? "ajuste" : origen + " (manual)");
+  if (despues) despues();
+}
+$("#qAdd").onclick = () => aplicarCantidad(false);
+$("#qSet").onclick = () => aplicarCantidad(true);
+$("#qCancel").onclick = cerrarCantidad;
+$("#qVal").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); aplicarCantidad(false); } });
+$("#dlgQty").addEventListener("cancel", () => { qCtx = null; setTimeout(() => scanIn.focus(), 80); });
+// Pide la contraseña de la app para una acción protegida
+let autorizo = "";
+function pedirClave(titulo, mensaje, boton, permiso = "quitar") {
+  return new Promise(res => {
+    const d = $("#dlgClave");
+    $("#clvTitulo").textContent = titulo; $("#clvMsg").innerHTML = mensaje; $("#clvOk").textContent = boton || "Confirmar"; $("#clvPw").value = "";
+    $("#clvUser").value = puede(permiso) ? USER.u : "";
+    const fin = ok => { d.close(); $("#clvOk").onclick = $("#clvCancel").onclick = null; res(ok); setTimeout(() => scanIn.focus(), 80); };
+    const probar = async () => {
+      if (SRV && SY.token) {   // con conexión se valida en el servidor (el autorizador no tiene que haber entrado en este teléfono)
+        try { const r = await api("autorizar", {method: "POST", body: {usuario: $("#clvUser").value, pw: $("#clvPw").value, permiso}});
+              SY.grant = r.grant; autorizo = r.nombre; return fin(true); }
+        catch (e) { if (!e.red) { $("#clvPw").value = ""; if (navigator.vibrate) navigator.vibrate(200); return toast(e.message); } }
+      }
+      SY.grant = null;
+      const u = await validarUsuario($("#clvUser").value, $("#clvPw").value);
+      if (!u) { $("#clvPw").value = ""; if (navigator.vibrate) navigator.vibrate(200); return toast("Usuario o contraseña incorrectos"); }
+      if (!permisosDe(u)[permiso]) { $("#clvPw").value = ""; return toast("Ese usuario no tiene permiso para esta acción"); }
+      autorizo = u.nombre; fin(true);
+    };
+    $("#clvOk").onclick = probar; $("#clvCancel").onclick = () => fin(false);
+    $("#clvPw").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); probar(); } };
+    d.oncancel = () => res(false);
+    d.showModal(); setTimeout(() => ($("#clvUser").value ? $("#clvPw") : $("#clvUser")).focus(), 80);
+  });
+}
+// Quita un producto completo del conteo (todas sus lecturas). Queda registrado en el Excel (hoja Eliminados).
+async function eliminarProductoConteo(k) {
+  if (bloqueada()) return false;
+  const c = S.cnt; if (!(k in c.conteo)) { if (k in CN().conteo) toast("Ese producto lo contó otro usuario: se corrige desde su teléfono."); return false; }
+  const it = item(k), nombre = it ? (it.desc || it.cod) : "Sin existencia en sistema: " + (c.raw[k] || k.replace(/^\?/, ""));
+  const lect = c.log.filter(l => l.k === k);
+  const ok = await pedirClave("Quitar producto del conteo",
+    `<b>${esc(nombre)}</b><br><span class="mut">${esc(it ? (it.bc || it.cod) : (c.raw[k] || ""))}</span><br><br>Se quitarán <b>${fmt(c.conteo[k])} unidades</b> (${lect.length} lectura${lect.length === 1 ? "" : "s"}). El producto quedará como <b>no contado</b>.<br>Lo debe autorizar un usuario con permiso (por ejemplo, un administrador) con su usuario y contraseña.`,
+    "🗑 Quitar del conteo");
+  if (!ok) return false;
+  (c.elim = c.elim || []).push({t: Date.now(), k, bc: it ? (it.bc || it.cod) : (c.raw[k] || k), desc: nombre, cant: c.conteo[k], lect: lect.length, resp: S.meta.resp || "", usuario: USER ? USER.nombre : "", autorizo});
+  c.log = c.log.filter(l => l.k !== k); delete c.conteo[k]; delete c.raw[k];
+  if (c.last === k) c.last = null;
+  saveCount(true); renderScan(); renderHeader(); if (!$("#tab-cierre").hidden) renderCierre();
+  toast("Producto quitado del conteo");
+  return true;
+}
+$("#btnDelProd").onclick = () => { if (S.cnt.last) eliminarProductoConteo(S.cnt.last); };
+$("#btnEditQty").onclick = () => { const k = S.cnt.last; if (!k) return; const it = item(k); abrirCantidad(k, it ? (it.bc || it.cod) : (S.cnt.raw[k] || k), "corrección"); };
+function aplicarModo() {
+  const m = modoManual();
+  $("#qtyRow").hidden = m;
+  $("#qtyHelp").textContent = m ? "Al leer o buscar un producto se abre una ventana para escribir cuántas unidades contaste."
+    : "Cada lectura suma la cantidad indicada. Sin \"Mantener\", vuelve a 1 después de cada lectura. Toca ⌨ para escribir el código: 123 = teclado numérico, ABC = con letras. Para buscar por nombre usa el buscador de abajo.";
+  try { localStorage.setItem("modoManual", m ? "1" : ""); } catch (e) {}
+}
+$("#modoManual").onchange = () => { aplicarModo(); scanIn.focus(); };
+try { $("#modoManual").checked = localStorage.getItem("modoManual") === "1"; } catch (e) {}
+aplicarModo();
+
+function registrarClave(k, bcLeido, q, origen, t) {
+  if (cerrada()) { if (t == null) bloqueada(); return; }
+  const c = S.cnt, silencioso = t != null;
+  c.conteo[k] = r3((c.conteo[k] || 0) + q);
+  if (!item(k)) c.raw[k] = cellStr(bcLeido);
+  c.log.push({id: ++c.seq, t: t || Date.now(), k, bc: cellStr(bcLeido), q, o: origen || "", us: USER ? USER.u : ""});
+  if (silencioso) return;
+  saveCount(); feedback(!!item(k));
+  if (!modoManual() && !$("#qLock").checked) $("#qty").value = 1;
+  c.last = k; renderScan(); renderHeader();
+}
+let actx = null;
+function feedback(ok) {
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(); o.connect(g); g.connect(actx.destination);
+    o.frequency.value = ok ? 1250 : 260; o.type = ok ? "sine" : "square"; g.gain.value = .12;
+    o.start(); o.stop(actx.currentTime + (ok ? .08 : .35)); } catch (e) {}
+  if (navigator.vibrate) navigator.vibrate(ok ? 40 : [90, 60, 90]);
+  const l = $("#last"); l.classList.remove("flash-ok", "flash-bad"); void l.offsetWidth; l.classList.add(ok ? "flash-ok" : "flash-bad");
+  setTimeout(() => l.classList.remove("flash-ok", "flash-bad"), 700);
+}
+function renderScan() {
+  const c = S.cnt, k = c.last, falta = cerrada() ? `🔒 Toma cerrada el ${fechaHora(S.meta.cerrada.t)}: solo consulta. Para seguir contando, reábrela con contraseña desde Cierre.` : listoParaContar();
+  $("#scanWarn").hidden = !falta; $("#scanWarn").textContent = falta; $("#scanWarn").className = cerrada() ? "lockbanner" : "warnbox";
+  if (k) { const it = item(k);
+    $("#lDesc").innerHTML = it ? esc(it.desc || "(sin descripción)") : `<span class="tag">SIN EXISTENCIA EN SISTEMA · se marcará sobrante</span>`;
+    $("#lBc").textContent = it ? [it.bc, it.cod && it.cod !== it.bc ? "Cód. " + it.cod : ""].filter(Boolean).join(" · ") : (c.raw[k] || k);
+    $("#lCnt").textContent = fmt(c.conteo[k] || 0); $("#btnEditQty").hidden = false; $("#btnDelProd").hidden = !(k in c.conteo);
+  } else { $("#btnEditQty").hidden = true; $("#btnDelProd").hidden = true; $("#lDesc").textContent = "—"; $("#lBc").textContent = ""; $("#lCnt").textContent = "0"; }
+  const keys = Object.keys(c.conteo).filter(k => c.conteo[k] !== 0);
+  $("#kProd").textContent = keys.length.toLocaleString("es-VE");
+  $("#kUni").textContent = fmt(keys.reduce((a, k) => a + c.conteo[k], 0));
+  $("#kLect").textContent = c.log.length.toLocaleString("es-VE");
+  const rec = c.log.slice(-40).reverse();
+  $("#logList").innerHTML = rec.length ? rec.map(l => { const it = item(l.k);
+    return `<li class="${it ? "" : "unk"}"><div class="g"><div>${esc(it ? (it.desc || it.cod) : "Sin existencia en sistema: " + l.bc)}</div><small>${hora(l.t)} · ${esc(l.bc)} · ${esc(l.o)}</small></div><span class="q">${l.q >= 0 ? "+" : ""}${fmt(l.q)}</span><button data-id="${l.id}">✕</button></li>`; }).join("")
+    : `<li class="mut">Aún no hay lecturas</li>`;
+  $("#logList").querySelectorAll("button").forEach(b => b.onclick = () => borrarLectura(+b.dataset.id));
+}
+function borrarLectura(id) {
+  if (bloqueada()) return;
+  const c = S.cnt, i = c.log.findIndex(l => l.id === id); if (i < 0) return;
+  const l = c.log[i]; c.log.splice(i, 1);
+  c.conteo[l.k] = r3((c.conteo[l.k] || 0) - l.q);
+  if (!c.log.some(x => x.k === l.k)) { delete c.conteo[l.k]; delete c.raw[l.k]; }
+  saveCount(); renderScan(); renderHeader(); toast("Lectura eliminada");
+}
+$("#btnUndo").onclick = () => { const l = S.cnt.log[S.cnt.log.length - 1]; if (l) borrarLectura(l.id); else toast("Nada que deshacer"); };
+
+/* ---------- Búsqueda dinámica por nombre ---------- */
+let HCACHE = null;
+function buscarProductos(q, lim) {
+  const w = normH(q).split(" ").filter(Boolean); if (!w.length || !S.inv) return {res: [], total: 0};
+  if (!HCACHE || HCACHE.inv !== S.inv) { HCACHE = {inv: S.inv, h: {}}; for (const k in S.inv.items) { const it = S.inv.items[k]; HCACHE.h[k] = normH(it.desc + " " + it.cod + " " + it.bc); } }
+  const out = [];
+  for (const k in S.inv.items) if (w.every(x => HCACHE.h[k].includes(x))) out.push(k);
+  // productos vendidos que no estaban en el Reporte de Inventario (existencia 0)
+  const sm = SIN_INV(), vistos = new Set();
+  for (const n in sm) { const x = sm[n], key = "?" + normBC(x.cod || x.bc); if (vistos.has(key) || item(claveDe(x.cod) || "")) continue; vistos.add(key);
+    if (w.every(t => normH(x.desc + " " + x.cod + " " + x.bc).includes(t))) out.push(key); }
+  const d = k => normH(item(k) ? item(k).desc : (sm[k.slice(1)] || {}).desc || "");
+  out.sort((a, b) => (d(a).startsWith(w[0]) ? 0 : 1) - (d(b).startsWith(w[0]) ? 0 : 1) || d(a).localeCompare(d(b)));
+  return {res: out.slice(0, lim), total: out.length};
+}
+function resaltar(txt, q) {
+  let h = esc(txt); const w = normH(q).split(" ").filter(x => x.length > 1);
+  if (!w.length) return h;
+  // resalta ignorando acentos: se busca sobre una versión sin acentos con las mismas posiciones
+  const base = String(txt).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (base.length !== String(txt).length) return h;
+  const marks = new Array(base.length).fill(false);
+  for (const x of w) { let i = base.indexOf(x); while (i >= 0) { for (let j = i; j < i + x.length; j++) marks[j] = true; i = base.indexOf(x, i + 1); } }
+  let out = "", on = false;
+  for (let i = 0; i < txt.length; i++) { if (marks[i] && !on) { out += "<mark>"; on = true; } if (!marks[i] && on) { out += "</mark>"; on = false; } out += esc(txt[i]); }
+  return out + (on ? "</mark>" : "");
+}
+function pintarBusqueda(input, info, lista, alElegir) {
+  const q = input.value.trim();
+  if (normH(q).length < 2) { lista.innerHTML = ""; info.textContent = q ? "Escribe al menos 2 letras" : ""; return; }
+  if (!S.inv) { info.textContent = "Primero carga el Reporte de Inventario"; lista.innerHTML = ""; return; }
+  const LIM = 60, {res, total} = buscarProductos(q, LIM);
+  info.textContent = total ? `${total} producto${total > 1 ? "s" : ""}${total > LIM ? ` · mostrando ${LIM}, escribe más para afinar` : ""} · toca uno para seleccionarlo` : `Sin resultados para "${q}"`;
+  const sm = SIN_INV();
+  lista.innerHTML = res.map(k => { const c = S.cnt.conteo[k];
+    const it = item(k) || (x => ({desc: x.desc, cod: x.cod, bc: x.bc, stock: 0}))(sm[k.slice(1)] || {});
+    return `<li data-k="${esc(k)}"><div class="g"><div>${resaltar(it.desc || it.cod || "", q)}</div><small>${esc(it.bc || it.cod)}${c != null ? ` · <b>contado ${fmt(c)}</b>` : ""}</small></div>${verStock() ? `<div class="ex"><small style="margin:0;font-weight:400;color:var(--mut)">Exist.</small>${fmt(it.stock || 0)}</div>` : ""}</li>`; }).join("");
+  lista.querySelectorAll("li[data-k]").forEach(li => li.onclick = () => alElegir(li.dataset.k));
+}
+function busquedaViva(input, info, lista, alElegir) {
+  let t = null; const run = () => pintarBusqueda(input, info, lista, alElegir);
+  input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(run, 120); });
+  input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); clearTimeout(t); run(); } });
+  return run;
+}
+const buscarEscanear = busquedaViva($("#sNombre"), $("#sNomInfo"), $("#sNomList"), k => {
+  const falta = listoParaContar(); if (falta) return toast(falta);
+  const it = item(k); abrirCantidad(k, it ? (it.bc || it.cod) : k.slice(1), "búsqueda", () => buscarEscanear());
+});
+function mostrarFicha(k) {
+  const x = calcular().find(z => z.k === k);
+  $("#cqRes").innerHTML = ficha(k, x);
+  conectarFicha($("#cqRes"), () => mostrarFicha(k));
+}
+const buscarConsulta = busquedaViva($("#cNombre"), $("#cNomInfo"), $("#cNomList"), k => {
+  mostrarFicha(k); window.scrollTo({top: 0, behavior: "smooth"});
+});
+
+/* ---------- Consultar ---------- */
+const cq = $("#cq");
+cq.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); consultar(cq.value); cq.value = ""; } });
+tecladoCiclo(cq, $("#btnKbdQ"));
+function consultar(v) {
+  v = limpiarCodigo(v); if (!v) return;
+  if (!S.inv) return toast("Primero carga el Reporte de Inventario");
+  const filasMap = new Map(calcular().map(x => [x.k, x]));
+  const k = claveDe(v), n = normBC(v);
+  let keys = [];
+  if (k) keys = [k];
+  else if (!/\s/.test(v) && /\d/.test(v)) keys = ["?" + n];
+  else { $("#cNombre").value = v; buscarConsulta(); return; }
+  $("#cqRes").innerHTML = keys.map(kk => ficha(kk, filasMap.get(kk))).join("");
+  conectarFicha($("#cqRes"), () => mostrarFicha(keys[0]));
+}
+function ficha(k, x) {
+  const C = CN(), it = item(k), contado = C.conteo[k] || 0, fue = k in C.conteo, val = S.cortes.length > 0;
+  const lect = C.log.filter(l => l.k === k), ult = lect.length ? lect[lect.length - 1].t : null;
+  const smx = !it ? SIN_INV()[k.replace(/^\?/, "")] : null;
+  if (!it && !fue) return `<div class="card ficha"><div class="t">${esc(smx ? smx.desc : "Sin existencia en sistema")}</div><div class="sub">${esc(k.replace(/^\?/, ""))} · no está en el Reporte de Inventario</div>
+    <div class="nums"><div><b>0</b><span>Existencia sistema</span></div><div><b style="color:var(--pri)">0</b><span>Contado físico</span></div><div><b>—</b><span>Diferencia (al contar)</span></div></div>
+    <div class="pie"><span>Si lo encuentras físicamente, cuéntalo: saldrá como sobrante.</span><button class="btn sec" data-k="${esc(k)}">➕ Contar</button></div></div>`;
+  const s0 = it ? it.stock : 0, vs = verStock(), vd = verDif();
+  const dif = x ? x.dif : contado - s0;
+  const cls = !fue ? "" : dif < 0 ? "neg" : dif > 0 ? "pos" : "zero";
+  const est = x ? ESTADOS[x.est] + (x.est !== "SIN_EXISTENCIA" && (x.noInv || (s0 === 0 && contado > 0)) ? " · sin existencia en sistema" : "") : "";
+  return `<div class="card ficha"><div class="t">${esc(it ? (it.desc || it.cod) : (x && x.desc) || "Sin existencia en sistema")}</div>
+    <div class="sub">${esc([it && it.bc, it && it.cod && it.cod !== it.bc ? "Cód. " + it.cod : "", !it ? k.replace(/^\?/, "") : ""].filter(Boolean).join(" · "))}${vs && it && it.costo != null ? " · Costo $" + fmt(it.costo) : ""}</div>
+    <div class="nums">
+      <div><b>${vs ? fmt(s0) : "🔒"}</b><span>${vs ? `Existencia sistema (inicio ${hora(S.inv.t)})` : cerrada() ? "Existencia (sin permiso)" : "Existencia bloqueada durante la toma"}</span></div>
+      <div><b style="color:var(--pri)">${fmt(contado)}</b><span>Contado físico${lect.length ? ` · ${lect.length} lect.` : fue ? "" : " (aún no contado)"}</span></div>
+      <div><b class="${vd ? cls : ""}">${!vd ? "🔒" : fue ? (dif > 0 ? "+" : "") + fmt(dif) : "—"}</b><span>${!vd ? "Diferencia oculta" : fue ? (val ? "Diferencia validada" : "Diferencia preliminar") : "Diferencia (al contar)"}</span></div>
+    </div>
+    <div class="pie"><span>${vd && x && fue ? `<span class="est ${x.est}">${esc(est)}</span> ` : ""}${vd && val && x && x.vTotal ? `Vendido en la toma: ${fmt(x.vTotal)} · teórico ${rango(x)}` : ""}${ult ? ` · Última lectura ${hora(ult)}` : ""}</span>
+      <span style="display:flex;gap:6px;flex:0 0 auto">${cerrada() ? "🔒" : `${fue ? `<button class="btn danger" data-del="${esc(k)}" title="Quitar del conteo">🗑</button>` : ""}<button class="btn sec" data-k="${esc(k)}">➕ Contar</button>`}</span></div></div>`;
+}
+// Conecta los botones de una ficha (Contar / Quitar del conteo)
+function conectarFicha(cont, refrescar) {
+  cont.querySelectorAll("button[data-k]").forEach(b => b.onclick = () => { const kk = b.dataset.k, it = item(kk); irA("escanear"); abrirCantidad(kk, it ? (it.bc || it.cod) : kk.replace(/^\?/, ""), "consulta"); });
+  cont.querySelectorAll("button[data-del]").forEach(b => b.onclick = async () => { if (await eliminarProductoConteo(b.dataset.del)) refrescar(); });
+}
+
+/* ---------- Cámara ---------- */
+// Dos motores: el detector nativo de Android (ML Kit) y ZXing-C++ (WebAssembly, incluido en la app).
+// Lee todos los formatos: EAN/UPC, Code 128/39/93, ITF, Codabar, DataBar, QR, DataMatrix, PDF417, Aztec…
+const cam = {stream: null, run: false, track: null, det: null, zx: false, cand: "", candT: 0, visto: {},
+             cv: null, cx: null, frame: 0, job: 0, zoom: 1, zooms: [1], devs: [], torch: false,
+             ocupadoN: false, ocupadoZ: false, ultimoAcierto: 0, ultimoFoco: 0, focoUnico: false};
+const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } };
+// ZXing corre en un Web Worker: lee en segundo plano sin trabar la pantalla
+let zxWorker = null, zxPromise = null;
+function cargarZXing() {
+  if (zxPromise) return zxPromise;
+  zxPromise = new Promise((res, rej) => {
+    const js = new URL("lib/zxing-reader.js", location.href).href, wasm = new URL("lib/zxing_reader.wasm", location.href).href;
+    const src = `self.importScripts(${JSON.stringify(js)});
+      const listo = ZXingWASM.prepareZXingModule({overrides: {locateFile: (p, pre) => p.endsWith(".wasm") ? ${JSON.stringify(wasm)} : pre + p}, fireImmediately: true});
+      listo.then(() => postMessage({listo: true}), e => postMessage({error: String(e)}));
+      onmessage = async e => { await listo; const {id, img, duro} = e.data;
+        try { const r = await ZXingWASM.readBarcodes(img, {tryHarder: duro, maxNumberOfSymbols: 1});
+              const ok = r.find(x => x.isValid && x.text); postMessage({id, text: ok ? ok.text : "", fmt: ok ? ok.format : ""}); }
+        catch (err) { postMessage({id, text: ""}); } };`;
+    try { zxWorker = new Worker(URL.createObjectURL(new Blob([src], {type: "text/javascript"}))); } catch (e) { return rej(e); }
+    zxWorker.onmessage = e => {
+      const d = e.data;
+      if (d.listo) return res();
+      if (d.error) return rej(new Error(d.error));
+      cam.ocupadoZ = false;
+      if (d.text && cam.run) aceptarLectura({text: d.text, fmt: d.fmt});
+    };
+    zxWorker.onerror = e => rej(e);
+  });
+  zxPromise.catch(() => { zxPromise = null; zxWorker = null; });
+  return zxPromise;
+}
+$("#btnCam").onclick = () => cam.run ? cerrarCamara() : abrirCamara();
+$("#btnCamClose").onclick = cerrarCamara;
+$("#btnTorch").onclick = async () => {
+  try { await cam.track.applyConstraints({advanced: [{torch: !cam.torch}]}); cam.torch = !cam.torch; $("#btnTorch").style.background = cam.torch ? "#e0a800" : ""; } catch (e) { toast("Linterna no disponible"); }
+};
+$("#btnZoom").onclick = async () => {
+  const i = cam.zooms.indexOf(cam.zoom); cam.zoom = cam.zooms[(i + 1) % cam.zooms.length]; pref("camZoom", String(cam.zoom));
+  try { await cam.track.applyConstraints({advanced: [{zoom: cam.zoom}]}); } catch (e) {}
+  $("#btnZoom").textContent = cam.zoom + "x";
+};
+$("#btnCamSw").onclick = async () => {
+  if (cam.devs.length < 2) return;
+  const actual = cam.track && cam.track.getSettings ? cam.track.getSettings().deviceId : "";
+  const i = cam.devs.findIndex(d => d.deviceId === actual), sig = cam.devs[(i + 1) % cam.devs.length];
+  pref("camDev", sig.deviceId);
+  try { await iniciarStream(sig.deviceId); toast(sig.label || "Cámara cambiada"); } catch (e) { toast("No se pudo cambiar de cámara"); }
+};
+$("#video").onclick = async () => {   // tocar la imagen = reenfocar
+  try { await cam.track.applyConstraints({advanced: [{focusMode: "single-shot"}]}); setTimeout(() => cam.track && cam.track.applyConstraints({advanced: [{focusMode: "continuous"}]}).catch(() => {}), 1200); } catch (e) {}
+};
+document.addEventListener("visibilitychange", () => { if (document.hidden && cam.run) cerrarCamara(); });
+$("#btnCamQ").onclick = () => cam.run ? cerrarCamara() : abrirCamara();
+
+async function abrirCamara() {
+  const falta = listoParaContar(); if (falta) return toast(falta);
+  if (!$("#tab-escanear").hidden && bloqueada()) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast("Este navegador no permite usar la cámara. Abra la app desde Chrome.");
+  $("#camBox").hidden = false; cam.run = true; window.scrollTo(0, 0); $("#camLbl").textContent = "Iniciando cámara…";
+  try {
+    await iniciarStream(pref("camDev"));
+    cam.devs = await camarasTraseras(); $("#btnCamSw").hidden = cam.devs.length < 2;
+    if ("BarcodeDetector" in window && !cam.det) {
+      try { const f = await BarcodeDetector.getSupportedFormats(); if (f.length) cam.det = new BarcodeDetector({formats: f}); } catch (e) {}
+    }
+    cargarZXing().then(() => { cam.zx = true; etiquetaMotor(); }).catch(() => etiquetaMotor());
+    cam.visto = {}; cam.ultimoAcierto = Date.now(); etiquetaMotor(); bucle();
+  } catch (e) { cerrarCamara(); toast("No se pudo abrir la cámara: " + (e.message || e.name || e)); }
+}
+function etiquetaMotor() {
+  if (!cam.run) return;
+  const m = [cam.det ? "Android" : "", cam.zx ? "ZXing" : ""].filter(Boolean).join(" + ") || "cargando…";
+  $("#camLbl").textContent = `Centra el código en el recuadro · lector: ${m}`;
+}
+async function camarasTraseras() {
+  try {
+    const ds = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+    const tras = ds.filter(d => /back|rear|trasera|environment/i.test(d.label));
+    const n = l => { const m = String(l).match(/camera2?\s*(\d+)/i); return m ? +m[1] : 50; };
+    return (tras.length ? tras : ds).sort((a, b) => n(a.label) - n(b.label));
+  } catch (e) { return []; }
+}
+async function iniciarStream(deviceId) {
+  if (cam.stream) cam.stream.getTracks().forEach(t => t.stop());
+  const base = {width: {ideal: 1920}, height: {ideal: 1080}, frameRate: {ideal: 30}};
+  const video = deviceId ? {...base, deviceId: {exact: deviceId}} : {...base, facingMode: {ideal: "environment"}};
+  try { cam.stream = await navigator.mediaDevices.getUserMedia({video, audio: false}); }
+  catch (e) { if (deviceId) { pref("camDev", null); return iniciarStream(null); } throw e; }
+  const v = $("#video"); v.srcObject = cam.stream; await v.play();
+  cam.track = cam.stream.getVideoTracks()[0]; cam.torch = false; $("#btnTorch").style.background = "";
+  let c = {}; try { c = cam.track.getCapabilities ? cam.track.getCapabilities() : {}; } catch (e) {}
+  const adv = {};
+  if (c.focusMode && c.focusMode.includes("continuous")) adv.focusMode = "continuous";
+  cam.focoUnico = !!(c.focusMode && c.focusMode.includes("single-shot"));
+  if (c.exposureMode && c.exposureMode.includes("continuous")) adv.exposureMode = "continuous";
+  if (c.whiteBalanceMode && c.whiteBalanceMode.includes("continuous")) adv.whiteBalanceMode = "continuous";
+  if (c.zoom) {
+    cam.zooms = [1, 1.5, 2, 3].filter(z => z >= (c.zoom.min || 1) && z <= c.zoom.max);
+    const z = parseFloat(pref("camZoom")); cam.zoom = cam.zooms.includes(z) ? z : cam.zooms[0];
+    adv.zoom = cam.zoom;
+  }
+  try { if (Object.keys(adv).length) await cam.track.applyConstraints({advanced: [adv]}); } catch (e) {}
+  $("#btnZoom").hidden = !(c.zoom && cam.zooms.length > 1); $("#btnZoom").textContent = cam.zoom + "x";
+  $("#btnTorch").hidden = !c.torch;
+}
+function bucle() {
+  if (!cam.run) return;
+  const v = $("#video");
+  if (v.readyState >= 2 && v.videoWidth) { cam.frame++; detectarNativo(v); detectarZXing(v); reenfocarSiHaceFalta(); }
+  if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => bucle()); else setTimeout(bucle, 33);
+}
+// Motor nativo de Android (ML Kit): rápido, trabaja directo sobre el video
+function detectarNativo(v) {
+  if (!cam.det || cam.ocupadoN) return;
+  cam.ocupadoN = true;
+  cam.det.detect(v).then(r => { if (r.length && cam.run) aceptarLectura({text: r[0].rawValue, fmt: r[0].format}); })
+    .catch(() => {}).finally(() => { cam.ocupadoN = false; });
+}
+// ZXing: recorta la zona del recuadro y la envía al worker (en paralelo con el nativo)
+function detectarZXing(v) {
+  if (!cam.zx || !zxWorker || cam.ocupadoZ) return;
+  if (cam.det && cam.frame % 2) return;                  // con motor nativo, ZXing apoya en cuadros alternos
+  const n = ++cam.job, W = v.videoWidth, H = v.videoHeight, completo = n % 5 === 0;
+  let sx = 0, sy = 0, sw = W, sh = H;
+  if (!completo) { sw = Math.round(W * .9); sh = Math.round(H * .45); sx = Math.round((W - sw) / 2); sy = Math.round((H - sh) / 2); }
+  const k = Math.min(1, 1100 / Math.max(sw, sh)), cw = Math.round(sw * k), ch = Math.round(sh * k);
+  if (!cam.cv) { cam.cv = document.createElement("canvas"); cam.cx = cam.cv.getContext("2d", {willReadFrequently: true}); }
+  if (cam.cv.width !== cw || cam.cv.height !== ch) { cam.cv.width = cw; cam.cv.height = ch; }
+  cam.cx.drawImage(v, sx, sy, sw, sh, 0, 0, cw, ch);
+  const img = cam.cx.getImageData(0, 0, cw, ch);
+  cam.ocupadoZ = true;
+  zxWorker.postMessage({id: n, img, duro: n % 3 === 0}, [img.data.buffer]);
+  setTimeout(() => { if (cam.ocupadoZ) cam.ocupadoZ = false; }, 1500);  // por si el worker no responde
+}
+// Si no lee nada en un rato, reenfoca solo (muchos teléfonos pierden el foco de cerca)
+function reenfocarSiHaceFalta() {
+  const now = Date.now();
+  if (!cam.focoUnico || !cam.track || now - cam.ultimoAcierto < 2500 || now - cam.ultimoFoco < 3500) return;
+  cam.ultimoFoco = now;
+  cam.track.applyConstraints({advanced: [{focusMode: "single-shot"}]})
+    .then(() => setTimeout(() => cam.track && cam.track.applyConstraints({advanced: [{focusMode: "continuous"}]}).catch(() => {}), 700)).catch(() => {});
+}
+// Dígito verificador EAN-8 / EAN-13 / UPC-A
+function checksumOK(c) {
+  if (!/^\d+$/.test(c) || ![8, 12, 13, 14].includes(c.length)) return true;
+  let s = 0; for (let i = c.length - 2, w = 3; i >= 0; i--, w = 4 - w) s += +c[i] * w;
+  return (10 - s % 10) % 10 === +c[c.length - 1];
+}
+function aceptarLectura({text, fmt}) {
+  text = String(text || "").replace(/[\r\n\t]/g, "").trim(); if (!text) return;
+  const now = Date.now(), f = String(fmt || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (/^(ean13|ean8|upca)$/.test(f) && !checksumOK(text)) return;
+  // Mientras el código siga a la vista no se repite; basta apartarlo ~0,5 s para volver a leerlo
+  const prev = cam.visto[text];
+  if (prev && now - prev < 550) { cam.visto[text] = now; return; }
+  // Formatos sin dígito verificador: se confirman con dos lecturas iguales seguidas
+  if (/codabar|code39|code93|itf|code11|msi|pharma|industrial|matrix/.test(f) && (cam.cand !== text || now - cam.candT > 900)) {
+    cam.cand = text; cam.candT = now; return;
+  }
+  cam.cand = ""; cam.visto[text] = now; cam.ultimoAcierto = now;
+  const a = $("#aim"); a.classList.add("hit"); setTimeout(() => a.classList.remove("hit"), 250);
+  $("#camLbl").textContent = `Leído: ${text}`;
+  if (!$("#tab-consulta").hidden) consultar(text); else procesarEntrada(text, "cámara");
+}
+function cerrarCamara() {
+  cam.run = false;
+  if (cam.stream) cam.stream.getTracks().forEach(t => t.stop());
+  cam.stream = null; cam.track = null; $("#camBox").hidden = true;
+}
+
+/* ---------- Lector de pistola / Bluetooth ---------- */
+// 1) Si el lector no envía Enter, se detecta la ráfaga rápida de caracteres y se procesa sola.
+function autoEnvio(inp, fn) {
+  let tiempos = [], timer = null;
+  inp.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Tab") { tiempos = []; clearTimeout(timer); } });
+  inp.addEventListener("input", () => {
+    tiempos.push(performance.now()); clearTimeout(timer);
+    timer = setTimeout(() => {
+      const v = inp.value.trim(), n = tiempos.length;
+      if (v.length >= 4 && n >= 4 && (tiempos[n - 1] - tiempos[0]) / (n - 1) < 35) { inp.value = ""; fn(v); }
+      tiempos = [];
+    }, 150);
+  });
+}
+autoEnvio(scanIn, procesarEntrada); autoEnvio(cq, consultar);
+// 2) Si el campo perdió el foco, las lecturas del lector igual se capturan en Escanear y Consultar.
+const wedge = {buf: "", last: 0, timer: null};
+document.addEventListener("keydown", e => {
+  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if (document.querySelector("dialog[open]")) return;
+  const destino = !$("#tab-escanear").hidden ? procesarEntrada : !$("#tab-consulta").hidden ? consultar : null;
+  if (!destino) return;
+  const now = performance.now();
+  if (now - wedge.last > 300) wedge.buf = "";
+  wedge.last = now;
+  if (e.key === "Enter" || e.key === "Tab") {
+    if (wedge.buf.length >= 3) { e.preventDefault(); clearTimeout(wedge.timer); const v = wedge.buf; wedge.buf = ""; destino(v); }
+    return;
+  }
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    wedge.buf += e.key; clearTimeout(wedge.timer);
+    wedge.timer = setTimeout(() => { const v = wedge.buf; wedge.buf = ""; if (v.length >= 4) destino(v); }, 160);
+  }
+});
+
+/* ---------- Cortes ---------- */
+$("#btnCorte").onclick = async () => {
+  if (bloqueada()) return;
+  if (!puede("cargar")) return toast("Tu usuario no tiene permiso para cargar reportes");
+  const falta = listoParaContar(); if (falta) return toast(falta);
+  const imp = await importar("ventas", "Corte de Items Facturados"); if (!imp) return;
+  const v = construirVentas(imp); if (!validarPeriodo(v)) return;
+  if (v.t <= S.inv.t) return toast(`Este Items Facturados se generó a las ${hora(v.t)}, antes que el Reporte de Inventario (${hora(S.inv.t)}). Exporta uno nuevo al terminar de contar.`);
+  if (S.cortes.some(c => Math.abs(c.t - v.t) < 1000)) return toast("Ese reporte ya está cargado");
+  if (!v.exist) toast("El archivo no trae existencia actual: se usará la cantidad vendida y se asume que no hubo ventas antes del inventario.");
+  const ultLect = CN().log.reduce((a, l) => Math.max(a, l.t), 0);
+  if (ultLect > v.t && !confirm(`Hay lecturas posteriores a la hora de este reporte (${hora(v.t)}). Si ya terminaron de contar, conviene exportar uno nuevo. ¿Cargarlo igual?`)) return;
+  v.id = Date.now(); S.cortes.push(v); S.cortes.sort((a, b) => a.t - b.t);
+  await DB.set("cortes", S.cortes); tocarToma(); renderCierre(); renderHeader();
+  toast(`Items Facturados de las ${hora(v.t)} cargado: ${fmt(v.vend)} und vendidas durante la toma`);
+};
+function renderCortes() {
+  const ul = $("#cortesList");
+  if (!S.inv) { ul.innerHTML = `<li class="mut">Carga primero el Reporte de Inventario.</li>`; return; }
+  const ini = `<li><div class="g"><div>${hora(S.inv.t)} · Inicio</div><small>Reporte de Inventario · ${fmt(S.inv.unidades)} und</small></div></li>`;
+  ul.innerHTML = ini + (S.cortes.length ? S.cortes.map((c, i) => `<li><div class="g"><div>${hora(c.t)} · Items Facturados${i === S.cortes.length - 1 ? " (final)" : ""}</div><small>${fmt(c.vend)} und vendidas durante la toma${c.sinMatch.length ? ` · ${c.sinMatch.length} productos vendidos que no estaban en el inventario` : ""}</small></div><button data-id="${c.id}">✕</button></li>`).join("")
+    : `<li class="mut">Aún no se ha cargado. Los resultados son preliminares (sin descontar ventas).</li>`);
+  ul.querySelectorAll("button").forEach(b => b.onclick = async () => {
+    if (bloqueada()) return;
+    if (!puede("cargar")) return toast("Tu usuario no tiene permiso para cambiar los reportes");
+    if (!confirm("¿Quitar este Items Facturados?")) return;
+    S.cortes = S.cortes.filter(c => c.id !== +b.dataset.id); await DB.set("cortes", S.cortes); renderCierre(); renderHeader(); });
+}
+
+/* ---------- Cálculo ---------- */
+const ESTADOS = {OK:"OK", OK_VENTA:"OK (venta durante el conteo)", FALTANTE:"Faltante", SOBRANTE:"Sobrante", NO_CONTADO:"No contado", NO_REGISTRADO:"No está en inventario", SIN_EXISTENCIA:"Sin existencia"};
+let filtro = "CONT", filas = [];
+function calcular() {
+  const c = CN(), items = S.inv ? S.inv.items : {};
+  const cs = [{t: S.inv ? S.inv.t : 0, esInicio: true}, ...S.cortes];   // inicio + Items Facturados, por hora
+  const ult = cs[cs.length - 1];
+  const V = vendidoHasta;                                                // vendido desde el inicio hasta ese reporte
+  const t1 = {}, t2 = {};
+  for (const l of c.log) { if (!(l.k in t1) || l.t < t1[l.k]) t1[l.k] = l.t; if (!(l.k in t2) || l.t > t2[l.k]) t2[l.k] = l.t; }
+  const out = [];
+  for (const k of new Set([...Object.keys(items), ...Object.keys(c.conteo)])) {
+    const it = items[k], contado = c.conteo[k] || 0, fue = k in c.conteo;
+    const x = {k, cod: it ? it.cod : "", bc: it ? it.bc : (c.raw[k] || k.replace(/^\?/, "")), desc: it ? it.desc : "SIN EXISTENCIA EN SISTEMA",
+               s0: it ? it.stock : null, vAntes: null, vVentana: null, vTotal: it ? V(ult, k) : null, teoMin: null, teoMax: null,
+               contado, dif: 0, est: "", t1: t1[k] || null, t2: t2[k] || null, corteA: null, corteB: null, pend: false,
+               costo: it && it.costo != null ? it.costo : null};
+    if (!it) { x.est = "SOBRANTE"; x.noInv = true; x.s0 = 0; x.vTotal = 0; x.teoMin = x.teoMax = 0; x.dif = contado;
+               const sm = SIN_INV()[k.replace(/^\?/, "")]; if (sm) { x.desc = sm.desc; x.cod = sm.cod; if (sm.costo != null) x.costo = sm.costo; } }
+    else if (!fue) {
+      x.teoMin = x.teoMax = r3(x.s0 - x.vTotal);
+      if (x.teoMax > 0) { x.est = "NO_CONTADO"; x.dif = -x.teoMax; } else x.est = "SIN_EXISTENCIA";
+    } else {
+      let cb = cs[0]; for (const cc of cs) if (cc.t <= x.t1) cb = cc;   // último corte antes de la 1.ª lectura
+      const ca = cs.find(cc => cc.t >= x.t2) || null;                    // primer corte después de la última lectura
+      const va = V(cb, k), vd = ca ? V(ca, k) : V(ult, k);
+      x.vAntes = Math.min(va, vd); x.vVentana = r3(Math.abs(vd - va));
+      x.teoMax = r3(x.s0 - x.vAntes); x.teoMin = r3(x.s0 - Math.max(va, vd));
+      x.corteA = cb.t; x.corteB = ca ? ca.t : null; x.pend = !ca;
+      const dA = r3(contado - x.teoMax), dB = r3(contado - x.teoMin);
+      if (dA <= 0 && dB >= 0) { x.dif = 0; x.est = x.vVentana > 0 ? "OK_VENTA" : "OK"; }
+      else if (dB < 0) { x.dif = dB; x.est = "FALTANTE"; }
+      else { x.dif = dA; x.est = "SOBRANTE"; }
+    }
+    x.valor = x.costo != null ? r3(x.dif * x.costo) : null;
+    out.push(x);
+  }
+  return out;
+}
+// Nombres de productos vendidos que no estaban en el Reporte de Inventario (para identificar lo contado sin existencia)
+function SIN_INV() { const m = {}; for (const c of S.cortes) for (const x of c.sinMatch) { for (const v of [x.cod, x.bc]) { const n = normBC(v); if (n && !m[n]) m[n] = x; } } return m; }
+const pctTxt = v => v == null ? "—" : v.toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " %";
+// Tolerancia: diferencia aceptable entre contado y teórico (por defecto 1,5 %)
+const tolerancia = () => { const t = parseNum(S.meta.tol); return t > 0 ? t : 1.5; };
+// Pérdida = 100 − factor (el factor no se cruza con sobrantes, así que nunca pasa de 100 %)
+function evaluarFactor(fx) {
+  if (fx == null) return {txt: "Sin datos", corto: "Sin datos", cls: "mut", ok: null, perdida: null};
+  const d = r3(Math.max(0, 100 - fx)), tol = tolerancia(), tt = pctTxt(tol);
+  if (d <= tol) return {txt: d > 0 ? `Aceptable · pérdida ${pctTxt(d)} (máx. ${tt})` : "Aceptable · sin pérdida", corto: d > 0 ? `Aceptable · pérdida ${pctTxt(d)}` : "Aceptable · sin pérdida", cls: "ok", ok: true, perdida: d};
+  return {txt: `Fuera de lo aceptable · pérdida ${pctTxt(d)} (máx. ${tt})`, corto: `Fuera de rango · pérdida ${pctTxt(d)}`, cls: "bad", ok: false, perdida: d};
+}
+// El sobrante se evalúa aparte, con la misma tolerancia
+function evaluarSobrante(ps) {
+  if (ps == null || ps === 0) return {txt: "Sin sobrante", cls: "ok", ok: true};
+  return ps <= tolerancia() ? {txt: `Sobrante ${pctTxt(ps)} · dentro de lo aceptable`, cls: "ok", ok: true}
+                            : {txt: `Sobrante ${pctTxt(ps)} · supera ${pctTxt(tolerancia())}, revisar`, cls: "warn", ok: false};
+}
+function resumen(rows) {
+  const r = {OK: 0, OK_VENTA: 0, FALTANTE: 0, SOBRANTE: 0, NO_CONTADO: 0, NO_REGISTRADO: 0, SIN_EXISTENCIA: 0,
+             uFal: 0, uSob: 0, uNC: 0, vend: 0, vFal: 0, vSob: 0, vNC: 0, conCosto: false, pend: 0};
+  for (const x of rows) { r[x.est]++;
+    if (x.vTotal > 0) r.vend += x.vTotal;
+    if (x.pend) r.pend++;
+    if (x.costo != null) r.conCosto = true;
+    if (x.noInv) r.noInv = (r.noInv || 0) + 1;
+    if (x.est === "FALTANTE" && x.costo == null) r.falSinCosto = (r.falSinCosto || 0) + 1;
+    if (x.est === "SOBRANTE" && x.costo == null) r.sobSinCosto = (r.sobSinCosto || 0) + 1;
+    if (x.est === "FALTANTE") { r.uFal -= x.dif; r.vFal -= x.valor || 0; }
+    if (x.est === "SOBRANTE" || x.est === "NO_REGISTRADO") { r.uSob += x.dif; r.vSob += x.valor || 0; }
+    if (x.est === "NO_CONTADO") { r.uNC -= x.dif; r.vNC -= x.valor || 0; } }
+  r.contados = r.OK + r.OK_VENTA + r.FALTANTE + r.SOBRANTE;
+  // Factor = contado / teórico × 100, en unidades y en valores ($ al costo).
+  // Teórico usado por producto = contado − diferencia (el mismo con que se calcula la diferencia).
+  // Sin cruzar: por producto, lo contado se toma hasta el teórico; el exceso es sobrante y se mide aparte
+  // (los sobrantes de un producto NO compensan los faltantes de otro).
+  const f = {c: {cU: 0, tU: 0, sU: 0, cV: 0, tV: 0, sV: 0}, a: {cU: 0, tU: 0, sU: 0, cV: 0, tV: 0, sV: 0}};
+  for (const x of rows) {
+    if (x.est === "SIN_EXISTENCIA" || x.est === "NO_REGISTRADO" && !x.noInv) continue;
+    const teo = r3(x.contado - (x.dif || 0)), cap = Math.min(x.contado, teo), sob = Math.max(0, x.contado - teo);
+    const grupos = x.est === "NO_CONTADO" ? [f.a] : [f.c, f.a];
+    for (const g of grupos) { g.cU += cap; g.tU += teo; g.sU += sob;
+      if (x.costo != null) { g.cV += cap * x.costo; g.tV += teo * x.costo; g.sV += sob * x.costo; } }
+  }
+  const pct = (a, b) => b > 0 ? a / b * 100 : null;
+  r.factor = {};
+  for (const k of ["c", "a"]) { const g = f[k];
+    r.factor[k] = {cU: r3(g.cU), tU: r3(g.tU), sU: r3(g.sU), cV: r3(g.cV), tV: r3(g.tV), sV: r3(g.sV),
+                   fU: pct(g.cU, g.tU), fV: pct(g.cV, g.tV), sPU: pct(g.sU, g.tU), sPV: pct(g.sV, g.tV)}; }
+  return r;
+}
+
+/* ---------- Cierre ---------- */
+function renderEstado() {
+  const e = $("#estToma"), c = S.meta.cerrada, hist = S.meta.historial || [];
+  e.classList.toggle("cerr", !!c); e.classList.toggle("on", false);
+  e.innerHTML = c ? `🔒 <b>TOMA CERRADA</b> el ${fechaHora(c.t)}<br>Cerró: ${esc(c.usuario || "")}${c.autorizo && c.autorizo !== c.usuario ? ` · Autorizó: ${esc(c.autorizo)}` : ""}<br>Los datos ya no se pueden modificar.`
+    : `🟢 <b>TOMA ABIERTA</b> · se puede contar y corregir.${hist.length ? `<br><small>Último movimiento: ${esc(hist[hist.length - 1].accion)} el ${fechaHora(hist[hist.length - 1].t)}</small>` : ""}`;
+  if (SRV && puede("equipo") && SY.st.equipo && SY.st.equipo.length) {
+    const eq = SY.st.equipo, lect = eq.reduce((a, x) => a + (x.lect || 0), 0), nom = [...new Set(eq.map(x => x.nombre))];
+    e.innerHTML += `<br><small>☁ Resultado <b>consolidado</b> de ${eq.length} teléfono${eq.length === 1 ? "" : "s"} · ${lect.toLocaleString("es-VE")} lecturas · ${esc(nom.join(", "))}</small>`;
+  }
+  $("#btnCerrarToma").textContent = c ? "🔓 Reabrir toma (requiere contraseña)" : "🔒 Cerrar toma (requiere contraseña)";
+  $("#btnCerrarToma").className = "btn block " + (c ? "sec" : "danger");
+  if (!c) $("#btnCerrarToma").style.cssText = "background:var(--bad);color:#fff"; else $("#btnCerrarToma").style.cssText = "";
+  $("#btnCorte").disabled = !!c || !puede("cargar");
+  const vd = verDif();
+  ["#cardRes", "#cardAj", "#cardTbl", "#pendWarn"].forEach(id => { if (!vd) $(id).hidden = true; });
+  if (vd) { $("#cardRes").hidden = false; $("#cardAj").hidden = !puede("exportar"); $("#cardTbl").hidden = false; }
+  $("#expBtns").hidden = !puede("exportar");
+  $("#cardOculto").hidden = vd;
+  $("#ocultoMsg").innerHTML = c ? "Tu usuario no tiene permiso para ver los resultados de esta toma."
+    : "Mientras la toma está abierta, tu usuario no puede ver diferencias ni resultados, para garantizar un conteo ciego. Se mostrarán cuando la toma se cierre (si tu usuario tiene ese permiso).";
+}
+async function cerrarOReabrir() {
+  if (!S.inv) return toast("Primero carga el Reporte de Inventario");
+  if (!cerrada()) {
+    if (!S.cortes.length && !confirm("Aún no se cargó el Items Facturados: los resultados quedarían preliminares.\n\n¿Cerrar la toma de todas formas?")) return;
+    const ok = await pedirClave("Cerrar la toma", `Toma de <b>${esc(TOMA.sede)}</b> del ${fechaISO(TOMA.fecha)} · ${CN().log.length.toLocaleString("es-VE")} lecturas.<br><br>Al cerrarla ya <b>no se podrá contar, corregir, quitar productos ni cargar reportes</b>. Solo se podrá reabrir con contraseña.<br>Autoriza un usuario con permiso para cerrar tomas.`, "🔒 Cerrar toma", "cerrar");
+    if (!ok) return;
+    cerrarCamara(); saveCount(true);
+    S.meta.cerrada = {t: Date.now(), usuario: USER.nombre, autorizo};
+    (S.meta.historial = S.meta.historial || []).push({accion: "Cerrada", t: Date.now(), usuario: USER.nombre, autorizo});
+    toast("🔒 Toma cerrada");
+  } else {
+    const ok = await pedirClave("Reabrir la toma", `Al reabrir la toma se podrá volver a contar y modificar. Quedará registrado quién la reabrió.<br>Autoriza un usuario con permiso para reabrir tomas.`, "🔓 Reabrir", "cerrar");
+    if (!ok) return;
+    S.meta.cerrada = null;
+    (S.meta.historial = S.meta.historial || []).push({accion: "Reabierta", t: Date.now(), usuario: USER.nombre, autorizo});
+    toast("🔓 Toma reabierta");
+  }
+  if (SRV) { SY.st.grant = SY.grant || null; SY.st.bloq = false; }
+  await DB.set("meta", S.meta); tocarToma(); renderTodo();
+}
+$("#btnCerrarToma").onclick = cerrarOReabrir;
+function renderTodo() { renderProceso(); renderScan(); if (!$("#tab-cierre").hidden) renderCierre(); }
+function renderCierre() {
+  renderCortes(); renderEstado();
+  if (!verDif()) return;
+  if (!S.inv) { $("#sum").innerHTML = `<div style="grid-column:1/-1" class="mut">Carga el Reporte de Inventario para ver resultados.</div>`;
+    $("#tbody").innerHTML = ""; $("#chips").innerHTML = ""; $("#tblInfo").textContent = ""; $("#pendWarn").hidden = true; return; }
+  filas = calcular(); const r = resumen(filas);
+  const pw = $("#pendWarn");
+  pw.hidden = !r.pend || cerrada();
+  pw.innerHTML = S.cortes.length
+    ? `⚠ <b>${r.pend} productos</b> se contaron después del Items Facturados de las ${hora(S.cortes[S.cortes.length - 1].t)}. Exporta y carga uno nuevo para validarlos.`
+    : `⚠ Resultado preliminar: al terminar de contar, carga el <b>Items Facturados</b> del día para descontar lo vendido durante la toma.`;
+  const $$ = v => r.conCosto ? `<br><small>$ ${r3(v).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} al costo</small>` : "";
+  const usdTxt = v => "$ " + r3(v).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  $("#valores").hidden = !r.contados;
+  $("#valores").innerHTML = `
+    <div class="vbox fa"><span>Pérdida por faltantes</span><b>${usdTxt(r.vFal)}</b><small>${r.FALTANTE} productos · ${fmt(r.uFal)} und${r.falSinCosto ? ` · ${r.falSinCosto} sin costo` : ""}</small></div>
+    <div class="vbox so"><span>Valor de sobrantes</span><b>${usdTxt(r.vSob)}</b><small>${r.SOBRANTE} productos · ${fmt(r.uSob)} und${r.sobSinCosto ? ` · ${r.sobSinCosto} sin costo` : ""}</small></div>
+    <div class="vnota">Valores al costo. Se muestran por separado: los sobrantes <b>no</b> compensan los faltantes.</div>
+    ${[["Factor unidades", r.factor.c.fU, `Contado ${fmt(r.factor.c.cU)} / teórico ${fmt(r.factor.c.tU)} und`, r.factor.c.sPU, `${fmt(r.factor.c.sU)} und`],
+       ["Factor valores", r.factor.c.fV, `Contado ${usdTxt(r.factor.c.cV)} / teórico ${usdTxt(r.factor.c.tV)}`, r.factor.c.sPV, usdTxt(r.factor.c.sV)]].map(([t, v, sub, ps, sTxt]) => { const e = evaluarFactor(v), es = evaluarSobrante(ps);
+      return `<div class="vbox fx ev-${e.cls}"><span>${t}</span><b>${pctTxt(v)}</b><small>${sub}</small><div class="evl ${e.cls}">${e.ok === true ? "✔" : e.ok === false ? "✖" : ""} ${e.txt}</div>
+        <div class="evl ${es.cls}" style="font-weight:600">${es.ok ? "" : "⚠ "}Sobrante aparte: ${sTxt}${ps ? ` (${pctTxt(ps)})` : ""}${es.ok ? "" : " · revisar"}</div></div>`; }).join("")}
+    <div class="vnota tolrow">Diferencia aceptable: <input type="number" id="inTol" step="0.1" min="0" inputmode="decimal" value="${tolerancia()}"> %</div>
+    <div class="vnota">Factor = contado ÷ teórico × 100 sobre los productos contados, <b>sin cruzar</b>: los sobrantes no compensan los faltantes y se miden aparte. Incluyendo los que tienen existencia y no se contaron: unidades ${pctTxt(r.factor.a.fU)} · valores ${pctTxt(r.factor.a.fV)}.</div>`;
+  $("#sum").innerHTML = `
+    <div class="ok"><b>${r.OK + r.OK_VENTA}</b><span>Cuadran${r.OK_VENTA ? ` (${r.OK_VENTA} explicados por ventas durante el conteo)` : ""}</span></div>
+    <div class="fa"><b>${r.FALTANTE}</b><span>Faltantes · ${fmt(r.uFal)} und</span></div>
+    <div class="so"><b>${r.SOBRANTE}</b><span>Sobrantes · ${fmt(r.uSob)} und${r.noInv ? ` (${r.noInv} sin existencia en sistema)` : ""}</span></div>
+    <div class="nc"><b>${r.NO_CONTADO}</b><span>Con existencia sin contar · ${fmt(r.uNC)} und${$$(r.vNC)}</span></div>
+    <div><b>${S.cortes.length ? fmt(r.vend) : "—"}</b><span>Unidades vendidas durante la toma</span></div>
+    <div><b>${r.contados ? Math.round((r.OK + r.OK_VENTA) / r.contados * 100) : 0}%</b><span>Exactitud de lo contado (${r.contados} productos)</span></div>`;
+  renderAjustes();
+  const it = $("#inTol");
+  if (it) it.disabled = cerrada();
+  if (it) it.onchange = () => { const v = parseNum(it.value); if (!(v > 0)) return toast("Indica un porcentaje mayor que 0"); S.meta.tol = v; DB.set("meta", S.meta); renderCierre(); };
+  const ch = [["CONT","Contados"],["DIF","Con diferencia"],["FALTANTE","Faltantes"],["SOBRANTE","Sobrantes"],["NO_CONTADO","No contados"],["NOINV","Sin existencia en sistema"],["OK","Cuadran"],["PEND","Sin validar"],["ALL","Todos"]];
+  $("#chips").innerHTML = ch.map(([k, l]) => `<button data-f="${k}" class="${filtro === k ? "on" : ""}">${l}</button>`).join("");
+  $("#chips").querySelectorAll("button").forEach(b => b.onclick = () => { filtro = b.dataset.f; renderCierre(); });
+  renderTabla();
+}
+$("#fSearch").oninput = () => renderTabla();
+const rango = x => x.teoMin == null ? "—" : x.teoMin === x.teoMax ? fmt(x.teoMax) : `${fmt(x.teoMin)}–${fmt(x.teoMax)}`;
+function renderTabla() {
+  const q = normH($("#fSearch").value).split(" ").filter(Boolean);
+  const F = {ALL: x => x.est !== "SIN_EXISTENCIA", CONT: x => x.contado !== 0 || x.t1 != null, DIF: x => ["FALTANTE","SOBRANTE","NO_REGISTRADO"].includes(x.est),
+             OK: x => x.est === "OK" || x.est === "OK_VENTA", PEND: x => x.pend, NOINV: x => x.noInv || (x.s0 === 0 && x.contado > 0)};
+  let v = filas.filter(F[filtro] || (x => x.est === filtro));
+  if (q.length) v = v.filter(x => { const h = normH(x.desc + " " + x.bc + " " + x.cod); return q.every(w => h.includes(w)); });
+  v.sort((a, b) => Math.abs(b.dif || 0) - Math.abs(a.dif || 0) || String(a.desc).localeCompare(b.desc));
+  const LIM = 300;
+  $("#tblInfo").textContent = v.length > LIM ? `Mostrando ${LIM} de ${v.length.toLocaleString("es-VE")} (el Excel trae todos)` : `${v.length.toLocaleString("es-VE")} productos`;
+  $("#tbody").innerHTML = v.slice(0, LIM).map(x => `<tr data-k="${esc(x.k)}">
+    <td><div>${esc(x.desc)}</div><small>${esc(x.bc || x.cod)}${x.t2 ? " · " + hora(x.t2) : ""}</small><br><span class="est ${x.est}">${ESTADOS[x.est]}</span>${x.noInv || x.s0 === 0 ? ` <span class="est NO_REGISTRADO">sin existencia en sistema</span>` : ""}${x.pend ? ` <span class="est PEND">sin validar</span>` : ""}</td>
+    <td>${fmt(x.s0)}</td><td>${fmt(x.vTotal)}</td><td>${rango(x)}</td>
+    <td><b>${fmt(x.contado)}</b></td><td class="${x.dif < 0 ? "neg" : x.dif > 0 ? "pos" : "zero"}">${x.dif > 0 ? "+" : ""}${fmt(x.dif)}</td></tr>`).join("");
+  // tocar una fila abre su ficha en Consultar (para revisar, recontar o quitar del conteo)
+  $("#tbody").querySelectorAll("tr[data-k]").forEach(tr => tr.onclick = () => { irA("consulta"); mostrarFicha(tr.dataset.k); });
+}
+
+/* ---------- Excel (con formato) ---------- */
+const COL = {pri: "0F4C5C", pri2: "16697A", claro: "EEF3F5", borde: "D5DDE3", ok: "1E8E3E", bad: "C62828", sob: "1565C0", warn: "A86500", mut: "66727E", tx: "1D2731"};
+const FILL_EST = {OK: "EAF6ED", OK_VENTA: "EAF6ED", FALTANTE: "FDEDED", SOBRANTE: "EAF1FC", NO_CONTADO: "FFF6E6", SIN_EXISTENCIA: "F4F6F7"};
+const FMT = {und: '#,##0.##;-#,##0.##;0', dif: '+#,##0.##;-#,##0.##;0', usd: '"$"#,##0.00;-"$"#,##0.00;"–"'};
+const BRD = (() => { const l = {style: "thin", color: {rgb: COL.borde}}; return {top: l, bottom: l, left: l, right: l}; })();
+const montoTxt = v => r3(v || 0).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+function ponerCelda(ws, r, c, v, s) {
+  const ref = XLSX.utils.encode_cell({r, c});
+  const cel = ws[ref] || (ws[ref] = {t: "s", v: ""});
+  if (v !== undefined) { if (v === null || v === "") { cel.t = "s"; cel.v = ""; } else if (typeof v === "number") { cel.t = "n"; cel.v = v; } else { cel.t = "s"; cel.v = String(v); } }
+  if (s) cel.s = s;
+  return cel;
+}
+function ampliarRango(ws, r, c) {
+  const rg = XLSX.utils.decode_range(ws["!ref"] || "A1:A1");
+  rg.e.r = Math.max(rg.e.r, r); rg.e.c = Math.max(rg.e.c, c); ws["!ref"] = XLSX.utils.encode_range(rg);
+}
+// Encabezado de hoja: banda con título y subtítulo
+function bandaTitulo(ws, nC, titulo, sub) {
+  for (let c = 0; c < nC; c++) {
+    ponerCelda(ws, 0, c, c ? "" : titulo, {font: {bold: true, sz: 15, color: {rgb: "FFFFFF"}}, fill: {fgColor: {rgb: COL.pri}}, alignment: {vertical: "center", indent: 1}});
+    ponerCelda(ws, 1, c, c ? "" : sub, {font: {sz: 10, color: {rgb: "FFFFFF"}}, fill: {fgColor: {rgb: COL.pri2}}, alignment: {vertical: "center", indent: 1}});
+  }
+  ws["!merges"] = (ws["!merges"] || []).concat([{s: {r: 0, c: 0}, e: {r: 0, c: nC - 1}}, {s: {r: 1, c: 0}, e: {r: 1, c: nC - 1}}]);
+  ampliarRango(ws, 1, nC - 1);
+}
+// Tabla con encabezado, bordes, formatos y color por estado
+function hojaTabla(titulo, sub, cols, filas, estDe) {
+  const X = XLSX, r0 = 3, nC = cols.length;
+  const ws = X.utils.aoa_to_sheet([[], [], [], cols.map(c => c.h), ...filas]);
+  bandaTitulo(ws, nC, titulo, sub);
+  cols.forEach((c, j) => ponerCelda(ws, r0, j, undefined, {font: {bold: true, sz: 10, color: {rgb: "FFFFFF"}}, fill: {fgColor: {rgb: COL.pri}},
+    alignment: {horizontal: "center", vertical: "center", wrapText: true}, border: BRD}));
+  filas.forEach((f, i) => {
+    const est = estDe ? estDe(i) : null, fill = est && FILL_EST[est] ? {fgColor: {rgb: FILL_EST[est]}} : (i % 2 ? {fgColor: {rgb: "F8FAFB"}} : undefined);
+    cols.forEach((c, j) => {
+      const v = f[j], num = typeof v === "number";
+      let color = COL.tx;
+      if (c.signo && num) color = v < 0 ? COL.bad : v > 0 ? COL.sob : COL.ok;
+      if (c.estado && est) color = {FALTANTE: COL.bad, SOBRANTE: COL.sob, OK: COL.ok, OK_VENTA: COL.ok, NO_CONTADO: COL.warn}[est] || COL.mut;
+      const s = {font: {sz: 10, bold: !!(c.bold || c.estado || (c.signo && num && v !== 0)), color: {rgb: color}}, border: BRD,
+        alignment: {horizontal: c.al || (num ? "right" : "left"), vertical: "center", wrapText: !!c.wrap}};
+      if (fill) s.fill = fill;
+      if (c.fmt && num) s.numFmt = c.fmt;
+      ponerCelda(ws, r0 + 1 + i, j, v == null ? "" : undefined, s);
+    });
+  });
+  ampliarRango(ws, r0 + filas.length, nC - 1);
+  ws["!cols"] = cols.map(c => ({wch: c.w}));
+  ws["!rows"] = [{hpt: 30}, {hpt: 20}, {hpt: 8}, {hpt: 32}];
+  ws["!autofilter"] = {ref: X.utils.encode_range({s: {r: r0, c: 0}, e: {r: r0 + Math.max(filas.length, 1), c: nC - 1}})};
+  return ws;
+}
+const COLS_RES = [
+  {h: "Código", w: 16}, {h: "Código de barras", w: 16}, {h: "Descripción", w: 46, wrap: true},
+  {h: "Inventario inicial", w: 11, fmt: FMT.und}, {h: "Vendido antes del conteo", w: 11, fmt: FMT.und}, {h: "Vendido durante el conteo", w: 11, fmt: FMT.und},
+  {h: "Vendido total en la toma", w: 11, fmt: FMT.und}, {h: "Teórico mín.", w: 10, fmt: FMT.und}, {h: "Teórico máx.", w: 10, fmt: FMT.und},
+  {h: "Contado", w: 10, fmt: FMT.und, bold: true}, {h: "Diferencia", w: 11, fmt: FMT.dif, signo: true}, {h: "Estado", w: 24, estado: true, wrap: true},
+  {h: "Primera lectura", w: 18}, {h: "Última lectura", w: 18}, {h: "Costo unit.", w: 11, fmt: FMT.usd}, {h: "Valor diferencia", w: 13, fmt: FMT.usd, signo: true}];
+const filaRes = x => [x.cod, x.bc, x.desc, x.s0, x.vAntes, x.vVentana, x.vTotal, x.teoMin, x.teoMax, x.contado, x.dif,
+  ESTADOS[x.est] + (x.noInv || (x.s0 === 0 && x.contado > 0) ? " · sin existencia en sistema" : "") + (x.pend ? " · sin validar" : ""),
+  fechaHora(x.t1), fechaHora(x.t2), x.costo, x.valor];
+const ordenEst = {FALTANTE: 0, SOBRANTE: 1, NO_REGISTRADO: 2, NO_CONTADO: 3, OK_VENTA: 4, OK: 5, SIN_EXISTENCIA: 6};
+function subtitulo() {
+  const v = S.cortes.length ? `Validado con Items Facturados de las ${hora(S.cortes[S.cortes.length - 1].t)}` : "PRELIMINAR · sin Items Facturados";
+  return [S.meta.sede || "Sin sede", "Conteo del " + (TOMA ? fechaISO(TOMA.fecha) : fecha(S.inv.t)), S.meta.resp, v, cerrada() ? "TOMA CERRADA" : "TOMA ABIERTA"].filter(Boolean).join("   ·   ");
+}
+async function libroResultado() {
+  const X = await esperarXLSX();
+  const rows = calcular(), r = resumen(rows), C = CN(), log = C.log, val = S.cortes.length > 0;
+  rows.sort((a, b) => ordenEst[a.est] - ordenEst[b.est] || Math.abs(b.dif || 0) - Math.abs(a.dif || 0));
+  const wb = X.utils.book_new();
+
+  // --- Resumen ---
+  const ws = X.utils.aoa_to_sheet([[]]); const nC = 4;
+  bandaTitulo(ws, nC, "TOMA DE INVENTARIO · RESUMEN", subtitulo());
+  const lab = {font: {bold: true, sz: 10, color: {rgb: COL.mut}}, fill: {fgColor: {rgb: COL.claro}}, border: BRD, alignment: {vertical: "center", indent: 1}};
+  const valS = {font: {sz: 10, color: {rgb: COL.tx}}, border: BRD, alignment: {vertical: "center", indent: 1}};
+  const info = [
+    ["Sede", S.meta.sede], ["Fecha del conteo", TOMA ? fechaISO(TOMA.fecha) : fecha(S.inv.t)], ["Inventarista / Analista", S.meta.resp],
+    ["Estado de la toma", cerrada() ? `CERRADA el ${fechaHora(S.meta.cerrada.t)} · cerró ${S.meta.cerrada.usuario || ""}${S.meta.cerrada.autorizo ? " · autorizó " + S.meta.cerrada.autorizo : ""}` : "ABIERTA (los resultados pueden cambiar)"],
+    ["Reporte de Inventario", `${S.inv.archivo}  ·  generado ${fechaHora(S.inv.t)}`],
+    ["Items Facturados", val ? `${S.cortes[S.cortes.length - 1].archivo}  ·  generado ${fechaHora(S.cortes[S.cortes.length - 1].t)}` : "NO CARGADO · resultado preliminar"],
+    ["Lecturas", `${log.length.toLocaleString("es-VE")}  ·  de ${fechaHora(log[0] && log[0].t) || "—"} a ${fechaHora(log.length && log[log.length - 1].t) || "—"}`],
+    ["Exportado", fechaHora(Date.now())]];
+  const merges = ws["!merges"]; let rr = 3;
+  for (const [a, b] of info) {
+    ponerCelda(ws, rr, 0, a, lab);
+    for (let c = 1; c < nC; c++) ponerCelda(ws, rr, c, c === 1 ? (b || "") : "", c === 1 && a === "Items Facturados" && !val ? {...valS, font: {bold: true, sz: 10, color: {rgb: COL.warn}}} : valS);
+    merges.push({s: {r: rr, c: 1}, e: {r: rr, c: nC - 1}}); rr++;
+  }
+  rr++;
+  const hS = {font: {bold: true, sz: 10, color: {rgb: "FFFFFF"}}, fill: {fgColor: {rgb: COL.pri}}, border: BRD, alignment: {horizontal: "center", vertical: "center", wrapText: true}};
+  ["Indicador", "Productos", "Unidades", "Valor al costo"].forEach((h, c) => ponerCelda(ws, rr, c, h, hS)); const rHead = rr++;
+  const kpis = [
+    ["Cuadran", r.OK + r.OK_VENTA, null, null, COL.ok, "EAF6ED"],
+    ["   explicados por ventas durante el conteo", r.OK_VENTA, null, null, COL.mut, null],
+    ["Faltantes", r.FALTANTE, -r3(r.uFal), r.conCosto ? -r3(r.vFal) : null, COL.bad, "FDEDED"],
+    ["Sobrantes", r.SOBRANTE, r3(r.uSob), r.conCosto ? r3(r.vSob) : null, COL.sob, "EAF1FC"],
+    ["   contados sin existencia en sistema", r.noInv || 0, null, null, COL.mut, null],
+    ["Con existencia sin contar", r.NO_CONTADO, -r3(r.uNC), r.conCosto ? -r3(r.vNC) : null, COL.warn, "FFF6E6"],
+    ["Vendido durante la toma", null, val ? r3(r.vend) : null, null, COL.tx, null],
+    ["Exactitud de lo contado", r.contados ? (r.OK + r.OK_VENTA) / r.contados : 0, null, null, COL.pri, null]];
+  for (const [n, p, u, v, color, fill] of kpis) {
+    const base = {border: BRD, alignment: {vertical: "center"}, ...(fill ? {fill: {fgColor: {rgb: fill}}} : {})};
+    const sub = n.startsWith("   ");
+    ponerCelda(ws, rr, 0, n.trim(), {...base, font: {bold: !sub, sz: sub ? 9 : 11, italic: sub, color: {rgb: color}}, alignment: {vertical: "center", indent: sub ? 3 : 1}});
+    const esPct = n.startsWith("Exactitud");
+    ponerCelda(ws, rr, 1, p, {...base, font: {bold: !sub, sz: sub ? 9 : 11, color: {rgb: color}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: esPct ? "0%" : FMT.und});
+    ponerCelda(ws, rr, 2, u, {...base, font: {sz: 11, color: {rgb: color}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: FMT.dif});
+    ponerCelda(ws, rr, 3, v, {...base, font: {sz: 11, color: {rgb: color}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: FMT.usd});
+    rr++;
+  }
+  rr++;
+  if (r.conCosto) {
+    const vT = {font: {bold: true, sz: 10, color: {rgb: "FFFFFF"}}, fill: {fgColor: {rgb: COL.pri}}, border: BRD, alignment: {horizontal: "center", vertical: "center"}};
+    ["Valores al costo (no se compensan)", "Productos", "Unidades", "Monto $"].forEach((h, c) => ponerCelda(ws, rr, c, h, vT)); rr++;
+    [["Pérdida por faltantes", r.FALTANTE, r3(r.uFal), r3(r.vFal), COL.bad, "FDEDED"], ["Valor de sobrantes", r.SOBRANTE, r3(r.uSob), r3(r.vSob), COL.sob, "EAF1FC"]].forEach(([n, p, u, v, c, f]) => {
+      const b = {border: BRD, fill: {fgColor: {rgb: f}}, alignment: {vertical: "center"}};
+      ponerCelda(ws, rr, 0, n, {...b, font: {bold: true, sz: 12, color: {rgb: c}}, alignment: {vertical: "center", indent: 1}});
+      ponerCelda(ws, rr, 1, p, {...b, font: {sz: 11, color: {rgb: c}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: FMT.und});
+      ponerCelda(ws, rr, 2, u, {...b, font: {sz: 11, color: {rgb: c}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: FMT.und});
+      ponerCelda(ws, rr, 3, v, {...b, font: {bold: true, sz: 13, color: {rgb: c}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: '"$"#,##0.00'});
+      ws["!rows"] = ws["!rows"] || []; ws["!rows"][rr] = {hpt: 24}; rr++;
+    });
+    rr++;
+  }
+  {
+    const vT = {font: {bold: true, sz: 10, color: {rgb: "FFFFFF"}}, fill: {fgColor: {rgb: COL.pri}}, border: BRD, alignment: {horizontal: "center", vertical: "center", wrapText: true}};
+    ["Factor sin cruzar (contado / teórico × 100)", "Contado (hasta el teórico)", "Teórico", "Factor"].forEach((h, c) => ponerCelda(ws, rr, c, h, vT)); rr++;
+    const F = r.factor;
+    [["Unidades · productos contados", F.c.cU, F.c.tU, F.c.fU, FMT.und, true], ["Valores $ · productos contados", F.c.cV, F.c.tV, F.c.fV, '"$"#,##0.00', true],
+     ["Sobrante aparte · unidades", F.c.sU, F.c.tU, F.c.sPU, FMT.und, false], ["Sobrante aparte · valores $", F.c.sV, F.c.tV, F.c.sPV, '"$"#,##0.00', false],
+     ["Unidades · incluye no contados con existencia", F.a.cU, F.a.tU, F.a.fU, FMT.und, false], ["Valores $ · incluye no contados con existencia", F.a.cV, F.a.tV, F.a.fV, '"$"#,##0.00', false]]
+    .forEach(([n, c, t, fx, nf, main]) => {
+      const b = {border: BRD, fill: {fgColor: {rgb: main ? "EEF3F5" : "FFFFFF"}}, alignment: {vertical: "center"}};
+      ponerCelda(ws, rr, 0, n, {...b, font: {bold: main, sz: main ? 11 : 9, color: {rgb: main ? COL.pri : COL.mut}}, alignment: {vertical: "center", indent: 1}});
+      ponerCelda(ws, rr, 1, c, {...b, font: {sz: 10, color: {rgb: COL.tx}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: nf});
+      ponerCelda(ws, rr, 2, t, {...b, font: {sz: 10, color: {rgb: COL.tx}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: nf});
+      ponerCelda(ws, rr, 3, fx == null ? null : r3(fx) / 100, {...b, font: {bold: true, sz: main ? 13 : 10, color: {rgb: COL.pri}}, alignment: {horizontal: "right", vertical: "center"}, numFmt: "0.00%"});
+      ws["!rows"] = ws["!rows"] || []; ws["!rows"][rr] = {hpt: main ? 24 : 18}; rr++;
+    });
+    for (const [n, fx, sob] of [["Evaluación unidades", F.c.fU], ["Evaluación valores", F.c.fV], ["Sobrante unidades", F.c.sPU, 1], ["Sobrante valores", F.c.sPV, 1]]) {
+      const e = sob ? evaluarSobrante(fx) : evaluarFactor(fx), c = {ok: COL.ok, bad: COL.bad, warn: COL.warn, mut: COL.mut}[e.cls], fl = {ok: "EAF6ED", bad: "FDEDED", warn: "FFF6E6", mut: "F4F6F7"}[e.cls];
+      ponerCelda(ws, rr, 0, n, {border: BRD, fill: {fgColor: {rgb: fl}}, font: {bold: true, sz: 10, color: {rgb: c}}, alignment: {vertical: "center", indent: 1}});
+      for (let k = 1; k < nC; k++) ponerCelda(ws, rr, k, k === 1 ? (e.ok === true ? "✔ " : e.ok === false ? "✖ " : "") + e.txt : "", {border: BRD, fill: {fgColor: {rgb: fl}}, font: {bold: true, sz: 10, color: {rgb: c}}, alignment: {vertical: "center", indent: 1}});
+      merges.push({s: {r: rr, c: 1}, e: {r: rr, c: nC - 1}}); ws["!rows"][rr] = {hpt: 20}; rr++;
+    }
+    rr++;
+  }
+  const notas = ["Cómo se calcula",
+    "Vendido en la toma = Inventario inicial − Existencia actual del Items Facturados.",
+    "Como no se sabe si un producto se vendió antes o después de contarlo, el teórico es un rango (de la existencia final a la inicial).",
+    "Si lo contado cae dentro del rango, el producto cuadra; si no, la diferencia es la mínima comprobada.",
+    "Lo contado que no tiene existencia en el sistema se marca como sobrante.",
+    "La pérdida por faltantes y el valor de los sobrantes se presentan por separado: no se compensan entre sí.",
+    `Factor = contado / teórico × 100 sin cruzar (por producto, lo contado se toma hasta su teórico). Pérdida = 100 − factor. El sobrante se mide aparte. Tolerancia: ${pctTxt(tolerancia())}.`];
+  notas.forEach((t, i) => { for (let c = 0; c < nC; c++) ponerCelda(ws, rr, c, c ? "" : t, {font: {sz: i ? 9 : 10, bold: !i, color: {rgb: i ? COL.mut : COL.tx}}, fill: {fgColor: {rgb: "FFFBEA"}}, alignment: {vertical: "center", indent: 1, wrapText: true}});
+    merges.push({s: {r: rr, c: 0}, e: {r: rr, c: nC - 1}}); rr++; });
+  ampliarRango(ws, rr, nC - 1);
+  ws["!cols"] = [{wch: 46}, {wch: 20}, {wch: 20}, {wch: 24}];
+  ws["!rows"] = ws["!rows"] || []; Object.assign(ws["!rows"], {0: {hpt: 30}, 1: {hpt: 20}, 2: {hpt: 8}, [rHead]: {hpt: 24}});
+  for (let i = rr - notas.length + 1; i < rr; i++) ws["!rows"][i] = {hpt: 26};
+  X.utils.book_append_sheet(wb, ws, "Resumen");
+
+  // --- Diferencias / Resultado ---
+  const dif = rows.filter(x => x.est === "FALTANTE" || x.est === "SOBRANTE");
+  X.utils.book_append_sheet(wb, hojaTabla("DIFERENCIAS POR CÓDIGO", subtitulo(), COLS_RES, dif.map(filaRes), i => dif[i].est), "Diferencias");
+  X.utils.book_append_sheet(wb, hojaTabla("RESULTADO COMPLETO", subtitulo(), COLS_RES, rows.map(filaRes), i => rows[i].est), "Resultado");
+
+  // --- Lecturas ---
+  const colsL = [{h: "Fecha y hora", w: 20}, {h: "Código", w: 16}, {h: "Código leído", w: 18}, {h: "Descripción", w: 46, wrap: true}, {h: "Cantidad", w: 10, fmt: FMT.dif, signo: true}, {h: "Origen", w: 16}, {h: "Usuario", w: 14}];
+  const el = C.elim || [];
+  if (el.length) {
+    const colsE = [{h: "Fecha y hora", w: 20}, {h: "Código", w: 18}, {h: "Descripción", w: 46, wrap: true}, {h: "Cantidad quitada", w: 12, fmt: FMT.und}, {h: "Lecturas", w: 10, fmt: FMT.und}, {h: "Usuario", w: 20}, {h: "Autorizó", w: 20}];
+    X.utils.book_append_sheet(wb, hojaTabla("PRODUCTOS QUITADOS DEL CONTEO (autorizados por un administrador)", subtitulo(), colsE,
+      el.map(e => [fechaHora(e.t), e.bc, e.desc, e.cant, e.lect, e.usuario || e.resp, e.autorizo || ""])), "Eliminados");
+  }
+  X.utils.book_append_sheet(wb, hojaTabla("LECTURAS", subtitulo(), colsL,
+    log.map(l => { const it = item(l.k); return [fechaHora(l.t), it ? it.cod : "", l.bc, it ? it.desc : "SIN EXISTENCIA EN SISTEMA", l.q, l.o, l.us || ""]; })), "Lecturas");
+
+  // --- Reportes ---
+  const colsR = [{h: "Generado", w: 22}, {h: "Reporte", w: 22}, {h: "Archivo", w: 46}, {h: "Unidades vendidas en el día", w: 16, fmt: FMT.und}, {h: "Vendido durante la toma", w: 16, fmt: FMT.und}];
+  X.utils.book_append_sheet(wb, hojaTabla("REPORTES DE PLADE USADOS", subtitulo(), colsR,
+    [[fechaHora(S.inv.t), "Reporte de Inventario", S.inv.archivo, null, null], ...S.cortes.map(c => [fechaHora(c.t), "Items Facturados", c.archivo, c.total, c.vend])]), "Reportes");
+  return wb;
+}
+
+/* ---------- PDF de diferencias ---------- */
+function cargarScript(src) { return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("No se pudo cargar " + src)); document.head.appendChild(s); }); }
+async function cargarPDF() {
+  if (!window.jspdf) await cargarScript("lib/jspdf.umd.min.js");
+  if (!window.autoTable) await cargarScript("lib/jspdf.plugin.autotable.min.js");
+}
+async function pdfDiferencias() {
+  await cargarPDF();
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({unit: "pt", format: "letter"});
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 34;
+  const rows = calcular(), r = resumen(rows), val = S.cortes.length > 0, ultC = S.cortes[S.cortes.length - 1];
+  const RGB = h => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  const num = n => n == null ? "" : fmt(n), sig = n => n == null ? "" : (n > 0 ? "+" : "") + fmt(n);
+  const rangoP = x => x.teoMin == null ? "" : x.teoMin === x.teoMax ? fmt(x.teoMax) : `${fmt(x.teoMin)} - ${fmt(x.teoMax)}`;
+  const txt = s => String(s ?? "").replace(/[−–—]/g, "-").replace(/[^\x20-\xFF\n]/g, "");
+
+  // Banda superior
+  doc.setFillColor(...RGB(COL.pri)); doc.rect(0, 0, W, 76, "F");
+  doc.setFillColor(255, 209, 102); doc.rect(0, 76, W, 3, "F");
+  doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(18);
+  doc.text("Reporte de conteo", M, 34);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10.5);
+  doc.text(txt(`Toma de inventario · ${S.meta.sede || "Sin sede"}`), M, 54);
+  const fConteo = TOMA ? fechaISO(TOMA.fecha) : fecha(S.inv.t);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text(fConteo, W - M, 34, {align: "right"});
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+  doc.text(txt((cerrada() ? "TOMA CERRADA" : "TOMA ABIERTA") + " · " + (val ? "Validado" : "Preliminar")), W - M, 54, {align: "right"});
+
+  // Datos de la toma
+  let y = 100; const info = [
+    ["Inventarista / Analista", S.meta.resp || "—"],
+    ["Reporte de Inventario", `${fechaHora(S.inv.t)}`],
+    ["Items Facturados", val ? fechaHora(ultC.t) : "No cargado"],
+    ["Productos contados", `${r.contados.toLocaleString("es-VE")} · ${CN().log.length.toLocaleString("es-VE")} lecturas`]];
+  const cw = (W - 2 * M) / 4;
+  info.forEach(([a, b], i) => {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...RGB(COL.mut)); doc.text(txt(a.toUpperCase()), M + i * cw, y);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(...RGB(i === 2 && !val ? COL.warn : COL.tx)); doc.text(txt(b), M + i * cw, y + 13, {maxWidth: cw - 8});
+  });
+
+  // Tarjetas de indicadores
+  y = 132; const gap = 10, kw = (W - 2 * M - 3 * gap) / 4, kh = 64;
+  const cards = [
+    ["FALTANTES", String(r.FALTANTE), `${fmt(r.uFal)} und faltantes`, COL.bad, "FDEDED"],
+    ["SOBRANTES", String(r.SOBRANTE), `${fmt(r.uSob)} und sobrantes`, COL.sob, "EAF1FC"],
+    ["CUADRAN", String(r.OK + r.OK_VENTA), `de ${r.contados} productos contados`, COL.ok, "EAF6ED"],
+    ["EXACTITUD", `${r.contados ? Math.round((r.OK + r.OK_VENTA) / r.contados * 100) : 0}%`, val ? `${fmt(r.vend)} und vendidas en la toma` : "sin validar ventas", COL.pri, "EEF3F5"]];
+  cards.forEach(([t, n, s, c, f], i) => {
+    const x = M + i * (kw + gap);
+    doc.setFillColor(...RGB(f)); doc.roundedRect(x, y, kw, kh, 6, 6, "F");
+    doc.setFillColor(...RGB(c)); doc.rect(x, y + 6, 3, kh - 12, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...RGB(c)); doc.text(t, x + 12, y + 16);
+    doc.setFontSize(20); doc.text(n, x + 12, y + 40);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...RGB(COL.mut)); doc.text(txt(s), x + 12, y + 55, {maxWidth: kw - 16});
+  });
+  y += kh + 12;
+  // Valores al costo: pérdida por faltantes y sobrantes, por separado (no se compensan)
+  if (r.conCosto) {
+    const vw = (W - 2 * M - gap) / 2, vh = 46;
+    [["PÉRDIDA POR FALTANTES", r.vFal, `${r.FALTANTE} productos · ${fmt(r.uFal)} und${r.falSinCosto ? ` · ${r.falSinCosto} sin costo` : ""}`, COL.bad, "FDEDED"],
+     ["VALOR DE SOBRANTES", r.vSob, `${r.SOBRANTE} productos · ${fmt(r.uSob)} und${r.sobSinCosto ? ` · ${r.sobSinCosto} sin costo` : ""}`, COL.sob, "EAF1FC"]].forEach(([t, v, sub, c, f], i) => {
+      const x = M + i * (vw + gap);
+      doc.setFillColor(...RGB(f)); doc.setDrawColor(...RGB(c)); doc.setLineWidth(0.8); doc.roundedRect(x, y, vw, vh, 6, 6, "FD");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...RGB(c)); doc.text(txt(t), x + 12, y + 16);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...RGB(COL.mut)); doc.text(txt(sub), x + 12, y + 33);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(...RGB(c)); doc.text(`$ ${montoTxt(v)}`, x + vw - 12, y + 30, {align: "right"});
+    });
+    y += vh + 6;
+    doc.setFont("helvetica", "italic"); doc.setFontSize(7.5); doc.setTextColor(...RGB(COL.mut));
+    doc.text("Valores al costo. Se presentan por separado: los sobrantes no compensan los faltantes.", M, y + 6);
+    y += 16;
+  }
+  // Factor = contado / teórico × 100 (unidades y valores)
+  {
+    const F = r.factor.c, vw = (W - 2 * M - gap) / 2, vh = 46;
+    const vh2 = 70;
+    [["FACTOR UNIDADES (CONTADO / TEÓRICO)", F.fU, `Contado ${fmt(F.cU)} / teórico ${fmt(F.tU)} und`, F.sPU, `${fmt(F.sU)} und`],
+     ["FACTOR VALORES (CONTADO / TEÓRICO)", F.fV, `Contado $ ${montoTxt(F.cV)} / teórico $ ${montoTxt(F.tV)}`, F.sPV, `$ ${montoTxt(F.sV)}`]].forEach(([t, v, sub, ps, sTxt], i) => {
+      const x = M + i * (vw + gap), e = evaluarFactor(v), ce = {ok: COL.ok, bad: COL.bad, warn: COL.warn, mut: COL.mut}[e.cls], es = evaluarSobrante(ps);
+      doc.setFillColor(...RGB("EEF3F5")); doc.setDrawColor(...RGB(ce)); doc.setLineWidth(1); doc.roundedRect(x, y, vw, vh2, 6, 6, "FD");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...RGB(COL.pri)); doc.text(txt(t), x + 12, y + 16);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...RGB(COL.mut)); doc.text(txt(sub), x + 12, y + 31, {maxWidth: vw - 110});
+      doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(...RGB(COL.pri)); doc.text(txt(pctTxt(v)), x + vw - 12, y + 30, {align: "right"});
+      doc.setFontSize(8); doc.setTextColor(...RGB(ce)); doc.text(txt(e.corto.toUpperCase()), x + 12, y + 48);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...RGB(es.ok ? COL.sob : COL.warn));
+      doc.text(txt(`Sobrante aparte: ${sTxt}${ps ? ` (${pctTxt(ps)})` : ""}${es.ok ? "" : " - supera la tolerancia, revisar"}`), x + 12, y + 61);
+    });
+    y += vh2 + 6;
+    doc.setFont("helvetica", "italic"); doc.setFontSize(7.5); doc.setTextColor(...RGB(COL.mut));
+    doc.text(txt(`Factor = contado / teórico x 100 sobre los productos contados, sin cruzar: los sobrantes no compensan los faltantes. Pérdida aceptable: ${pctTxt(tolerancia())}. Incluyendo los no contados con existencia: unidades ${pctTxt(r.factor.a.fU)} · valores ${pctTxt(r.factor.a.fV)}.`), M, y + 6, {maxWidth: W - 2 * M});
+    y += 32;
+  }
+  if (!val) {
+    doc.setFillColor(255, 244, 224); doc.setDrawColor(243, 199, 122); doc.roundedRect(M, y, W - 2 * M, 26, 4, 4, "FD");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(122, 75, 0);
+    doc.text("Resultado preliminar: no se ha cargado el Items Facturados, las ventas durante la toma no están descontadas.", M + 10, y + 16, {maxWidth: W - 2 * M - 20});
+    y += 36;
+  }
+
+  // Tablas
+  const encabezado = (data) => {
+    if (data.pageNumber > 1) {
+      doc.setFillColor(...RGB(COL.pri)); doc.rect(0, 0, W, 30, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(255);
+      doc.text(txt(`Reporte de conteo · ${S.meta.sede || ""}`), M, 19); doc.text(fConteo, W - M, 19, {align: "right"});
+    }
+  };
+  // modo "cuadra": la última columna es el valor de lo contado (no hay diferencia que valorizar)
+  const seccion = (titulo, color, lista, nota, modo) => {
+    const cuadra = modo === "cuadra", vCont = x => x.costo != null ? r3(x.contado * x.costo) : null;
+    if (y > H - 120) { doc.addPage(); y = 50; }
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...RGB(color));
+    doc.text(txt(`${titulo} (${lista.length})`), M, y);
+    if (nota) { doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...RGB(COL.mut)); doc.text(txt(nota), W - M, y, {align: "right"}); }
+    const sumU = r3(lista.reduce((a, x) => a + (cuadra ? x.contado : (x.dif || 0)), 0)), sumV = r3(lista.reduce((a, x) => a + ((cuadra ? vCont(x) : x.valor) || 0), 0));
+    window.autoTable(doc, {
+      startY: y + 7, margin: {left: M, right: M, top: 44, bottom: 40},
+      head: [["Código / Barra", "Descripción", "Inicial", "Vend.", "Teórico", "Contado", "Dif.", "Costo $", cuadra ? "Valor contado $" : "Valor dif. $"]],
+      body: lista.map(x => [txt(x.cod && x.bc && normBC(x.cod) !== normBC(x.bc) ? `${x.cod}\n${x.bc}` : (x.bc || x.cod)),
+        txt(x.desc) + (!x.noInv && x.s0 === 0 && x.contado > 0 ? "\nSin existencia en sistema" : ""),
+        num(x.s0), x.vTotal ? num(x.vTotal) : "", rangoP(x), num(x.contado), sig(x.dif), x.costo != null ? montoTxt(x.costo) : "",
+        cuadra ? (vCont(x) != null ? montoTxt(vCont(x)) : "") : (x.valor != null ? montoTxt(x.valor) : "")]),
+      foot: [["", `Total ${lista.length} producto${lista.length === 1 ? "" : "s"}${r.conCosto ? (cuadra ? " · contado $ " + montoTxt(sumV) : sumV < 0 ? " · pérdida $ " + montoTxt(-sumV) : " · valor $ " + montoTxt(sumV)) : ""}`, "", "", "", cuadra ? num(sumU) : "", cuadra ? "" : sig(sumU), "", r.conCosto ? montoTxt(sumV) : ""]],
+      theme: "grid", showHead: "everyPage", showFoot: "lastPage", rowPageBreak: "avoid",
+      styles: {font: "helvetica", fontSize: 7.6, cellPadding: {top: 3.5, bottom: 3.5, left: 4, right: 4}, lineColor: [221, 227, 232], lineWidth: 0.5, textColor: RGB(COL.tx), valign: "middle", overflow: "linebreak"},
+      headStyles: {fillColor: RGB(color), textColor: 255, fontStyle: "bold", halign: "center", fontSize: 7, cellPadding: {top: 4, bottom: 4, left: 2, right: 2}},
+      footStyles: {fillColor: RGB(COL.claro), textColor: RGB(COL.tx), fontStyle: "bold", halign: "right"},
+      alternateRowStyles: {fillColor: [248, 250, 251]},
+      columnStyles: {0: {cellWidth: 74, fontSize: 6.8}, 1: {cellWidth: "auto"}, 2: {cellWidth: 34, halign: "right"}, 3: {cellWidth: 30, halign: "right"},
+                     4: {cellWidth: 40, halign: "right"}, 5: {cellWidth: 40, halign: "right", fontStyle: "bold"}, 6: {cellWidth: 32, halign: "right", fontStyle: "bold"},
+                     7: {cellWidth: 38, halign: "right"}, 8: {cellWidth: 50, halign: "right", fontStyle: "bold"}},
+      didParseCell: d => {
+        if (d.section === "body" && d.column.index === 1 && /Sin existencia en sistema$/.test(d.cell.raw)) d.cell.styles.textColor = RGB(COL.tx);
+        if ((d.section === "body" || d.section === "foot") && (d.column.index === 6 || d.column.index === 8)) d.cell.styles.textColor = RGB(color);
+        if (d.section === "foot" && d.column.index === 1) d.cell.styles.halign = "left";
+      },
+      didDrawPage: encabezado
+    });
+    y = doc.lastAutoTable.finalY + 26;
+  };
+  // Orden: de mayor a menor valor ($). Los productos sin costo van al final, por unidades.
+  const porValor = f => (a, b) => { const va = f(a), vb = f(b);
+    if (va == null && vb == null) return Math.abs(b.dif || 0) - Math.abs(a.dif || 0) || String(a.desc).localeCompare(b.desc);
+    if (va == null) return 1; if (vb == null) return -1;
+    return Math.abs(vb) - Math.abs(va) || String(a.desc).localeCompare(b.desc); };
+  const fal = rows.filter(x => x.est === "FALTANTE").sort(porValor(x => x.valor));
+  const sob = rows.filter(x => x.est === "SOBRANTE").sort(porValor(x => x.valor));
+  const cua = rows.filter(x => x.est === "OK" || x.est === "OK_VENTA").sort(porValor(x => x.costo != null ? x.contado * x.costo : null));
+  if (!fal.length && !sob.length) {
+    doc.setFillColor(234, 246, 237); doc.roundedRect(M, y, W - 2 * M, 50, 6, 6, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...RGB(COL.ok));
+    doc.text("Sin diferencias: todo lo contado cuadra.", W / 2, y + 30, {align: "center"}); y += 76;
+  }
+  if (fal.length) seccion("Faltantes", COL.bad, fal, "Contado menor que el teórico · de mayor a menor pérdida");
+  if (sob.length) seccion("Sobrantes", COL.sob, sob, "Contado mayor que el teórico · de mayor a menor valor");
+  if (cua.length && $("#pdfOK").checked) seccion("Cuadran (sin diferencia)", COL.ok, cua, "De mayor a menor valor contado", "cuadra");
+  if ($("#pdfNC").checked) {
+    const nc = rows.filter(x => x.est === "NO_CONTADO").sort(porValor(x => x.valor));
+    if (nc.length) seccion("Con existencia sin contar", COL.warn, nc, "Tienen existencia en el sistema y no se contaron");
+  }
+
+  // Firmas
+  if (y > H - 110) { doc.addPage(); y = 70; }
+  y = Math.max(y + 20, H - 120);
+  const fw = (W - 2 * M - 2 * 30) / 3;
+  ["Inventarista", "Analista", "Gerente"].forEach((t, i) => {
+    const x = M + i * (fw + 30);
+    doc.setDrawColor(...RGB(COL.mut)); doc.setLineWidth(0.6); doc.line(x, y + 30, x + fw, y + 30);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...RGB(COL.mut)); doc.text(t, x + fw / 2, y + 43, {align: "center"});
+  });
+
+  // Pie de página
+  const n = doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(221, 227, 232); doc.setLineWidth(0.5); doc.line(M, H - 28, W - M, H - 28);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...RGB(COL.mut));
+    doc.text(txt(`Generado el ${fechaHora(Date.now())} · Toma de Inventario`), M, H - 16);
+    doc.text(`Página ${i} de ${n}`, W - M, H - 16, {align: "right"});
+  }
+  return doc.output("blob");
+}
+
+/* ---------- Ajustes para Plade (CSV) ---------- */
+// Formato de carga de Plade: CODIGO;;;;; 6,00 ;;;;;;;;  (14 campos, sin encabezado, fin de línea CRLF)
+const cantPlade = q => " " + r3(q).toFixed(2).replace(".", ",") + " ";
+function lineasAjuste(tipo) {
+  const rows = calcular(), out = [], noInv = [], sinCod = [];
+  for (const x of rows) {
+    let q = 0;
+    if (tipo === "SALIDA" && (x.est === "FALTANTE" || ($("#ajNC").checked && x.est === "NO_CONTADO"))) q = -x.dif;
+    if (tipo === "ENTRADA" && x.est === "SOBRANTE") { if (x.noInv && !$("#ajNoInv").checked) continue; q = x.dif; }
+    if (!(q > 0)) continue;
+    const cod = cellStr(x.cod) || cellStr(x.bc);
+    if (!cod) { sinCod.push(x); continue; }
+    if (x.noInv) noInv.push(x);
+    out.push({cod, q: r3(q), x});
+  }
+  return {out, noInv, sinCod};
+}
+function csvPlade(lineas) {
+  return lineas.map(l => [l.cod.replace(/;/g, ""), "", "", "", "", cantPlade(l.q), "", "", "", "", "", "", "", ""].join(";")).join("\r\n") + "\r\n";
+}
+function archivosAjuste() {
+  const res = [];
+  for (const tipo of ["SALIDA", "ENTRADA"]) {
+    const {out} = lineasAjuste(tipo); if (!out.length) continue;
+    res.push({tipo, n: out.length, u: r3(out.reduce((a, l) => a + l.q, 0)),
+      blob: new Blob([csvPlade(out)], {type: "text/csv"}), nombre: `AJUSTE_${tipo}_${slug(sedeCorta()).toUpperCase()}_${TOMA ? TOMA.fecha : stamp().slice(0, 8)}.csv`});
+  }
+  return res;
+}
+function renderAjustes() {
+  if (!S.inv) { $("#ajInfo").textContent = "Carga el Reporte de Inventario."; return; }
+  const sal = lineasAjuste("SALIDA"), ent = lineasAjuste("ENTRADA");
+  const u = l => fmt(r3(l.out.reduce((a, z) => a + z.q, 0)));
+  $("#ajInfo").classList.toggle("on", S.cortes.length > 0);
+  $("#ajInfo").innerHTML = `Salida: <b>${sal.out.length}</b> códigos · ${u(sal)} und &nbsp;·&nbsp; Entrada: <b>${ent.out.length}</b> códigos · ${u(ent)} und` +
+    (ent.noInv.length ? `<span class="w">⚠ ${ent.noInv.length} código(s) de la entrada no estaban en el Reporte de Inventario: verifica que existan en Plade.</span>` : "") +
+    (sal.sinCod.length + ent.sinCod.length ? `<span class="w">⚠ ${sal.sinCod.length + ent.sinCod.length} producto(s) sin código se omitieron.</span>` : "") +
+    (S.cortes.length ? "" : `<span class="w">⚠ Aún no está validado con Items Facturados: las diferencias son preliminares.</span>`);
+  $("#btnAjSal").textContent = `⬇ SALIDA · ${sal.out.length} códigos`; $("#btnAjEnt").textContent = `⬇ ENTRADA · ${ent.out.length} códigos`;
+  $("#btnWaSal").textContent = `📲 SALIDA (${sal.out.length})`; $("#btnWaEnt").textContent = `📲 ENTRADA (${ent.out.length})`;
+}
+async function descargarAjuste(tipo) {
+  if (!S.inv) return toast("No hay datos");
+  if (!puedeExportar()) return;
+  const a = archivosAjuste().find(z => z.tipo === tipo);
+  if (!a) return toast(`No hay ${tipo === "SALIDA" ? "faltantes" : "sobrantes"} para ajustar`);
+  if (!S.cortes.length && !confirm("La toma aún no está validada con el Items Facturados: las diferencias son preliminares y el ajuste podría quedar mal.\n\n¿Generar el archivo de todas formas?")) return;
+  descargar(a.blob, a.nombre); toast(`${a.nombre}: ${a.n} códigos`);
+}
+// Envío directo por WhatsApp (un toque): los CSV se generan al instante y se comparten de inmediato
+function enviarAjustes(tipos) {
+  if (!S.inv) return toast("No hay datos");
+  if (!puedeExportar()) return;
+  const lista = archivosAjuste().filter(a => tipos.includes(a.tipo));
+  if (!lista.length) return toast(tipos.length > 1 ? "No hay diferencias para ajustar" : `No hay ${tipos[0] === "SALIDA" ? "faltantes" : "sobrantes"} para ajustar`);
+  if (!S.cortes.length && !confirm("La toma aún no está validada con el Items Facturados: las diferencias son preliminares.\n\n¿Enviar el ajuste de todas formas?")) return;
+  const txt = [`*Ajuste${lista.length > 1 ? "s" : ""} para Plade · ${sedeCorta()}*`, `Conteo del ${TOMA ? fechaISO(TOMA.fecha) : ""}${S.meta.resp ? " · " + S.meta.resp : ""}`,
+    ...lista.map(a => `${a.tipo === "SALIDA" ? "🔴" : "🔵"} ${a.tipo}: ${a.n} códigos · ${fmt(a.u)} und (${a.nombre})`),
+    S.cortes.length ? "" : "⚠ Preliminar: sin validar con Items Facturados"].filter(Boolean).join("\n");
+  compartirYa(lista, txt);
+}
+$("#btnWaSal").onclick = () => enviarAjustes(["SALIDA"]);
+$("#btnWaEnt").onclick = () => enviarAjustes(["ENTRADA"]);
+$("#btnWaAj").onclick = () => enviarAjustes(["SALIDA", "ENTRADA"]);
+$("#btnAjSal").onclick = () => descargarAjuste("SALIDA");
+$("#btnAjEnt").onclick = () => descargarAjuste("ENTRADA");
+$("#ajNC").onchange = $("#ajNoInv").onchange = renderAjustes;
+
+/* ---------- Descargar / compartir ---------- */
+const slug = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "x";
+const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; };
+const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const blobLibro = wb => new Blob([XLSX.write(wb, {bookType: "xlsx", type: "array", cellStyles: true})], {type: MIME_XLSX});
+function descargar(blob, nombre) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nombre;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+async function compartirArchivos(archivos) {   // archivos: [{blob, nombre}]
+  const fs = archivos.map(a => new File([a.blob], a.nombre, {type: a.blob.type}));
+  if (navigator.canShare && navigator.canShare({files: fs})) {
+    try { await navigator.share({files: fs, title: "Toma de inventario"}); return; } catch (e) { if (e.name === "AbortError") return; }
+  } else toast("Este navegador no permite compartir archivos; se descargarán.");
+  archivos.forEach(a => descargar(a.blob, a.nombre)); toast("Archivos descargados");
+}
+async function entregar(wb, nombre, compartir) {   // usado también por "Exportar conteo"
+  const blob = blobLibro(wb);
+  if (compartir) return compartirArchivos([{blob, nombre}]);
+  descargar(blob, nombre); toast("Archivo descargado: " + nombre);
+}
+const sedeCorta = () => (TOMA ? TOMA.sede : S.meta.sede || "").split("·")[0].trim();
+const base = () => `${slug(sedeCorta())}_${TOMA ? TOMA.fecha : ""}_${stamp().slice(-4)}`;
+const puedeExportar = () => { if (!puede("exportar") || !verDif()) { toast("Tu usuario no tiene permiso para exportar resultados en este momento"); return false; } return true; };
+async function conBoton(btn, fn) {
+  if (!S.inv) return toast("No hay datos");
+  if (!puedeExportar()) return;
+  const t = btn.textContent; btn.disabled = true; btn.textContent = "Generando…";
+  try { await fn(); } catch (e) { toast("Error: " + e.message); } finally { btn.disabled = false; btn.textContent = t; }
+}
+$("#btnExport").onclick = e => conBoton(e.currentTarget, async () => { const n = `Inventario_${base()}.xlsx`; descargar(blobLibro(await libroResultado()), n); toast("Excel descargado"); });
+$("#btnPdf").onclick = e => conBoton(e.currentTarget, async () => { descargar(await pdfDiferencias(), `Reporte_Conteo_${base()}.pdf`); toast("PDF descargado"); });
+// Resumen en texto para el mensaje de WhatsApp
+function textoResumen() {
+  const r = resumen(calcular()), F = r.factor.c, ef = evaluarFactor(F.fU), ev = evaluarFactor(F.fV), usd = v => "$ " + montoTxt(v);
+  return [`*Toma de inventario · ${sedeCorta()}*`, `Conteo del ${TOMA ? fechaISO(TOMA.fecha) : ""}${S.meta.resp ? " · " + S.meta.resp : ""}`,
+    (cerrada() ? "🔒 Toma cerrada · " : "Toma abierta · ") + (S.cortes.length ? "validada con Items Facturados" : "⚠ preliminar (sin Items Facturados)"), "",
+    `🔴 Faltantes: ${r.FALTANTE} productos · ${fmt(r.uFal)} und${r.conCosto ? " · pérdida " + usd(r.vFal) : ""}`,
+    `🔵 Sobrantes: ${r.SOBRANTE} productos · ${fmt(r.uSob)} und${r.conCosto ? " · " + usd(r.vSob) : ""}`,
+    `🟢 Cuadran: ${r.OK + r.OK_VENTA} de ${r.contados} contados`, "",
+    `Factor unidades: ${pctTxt(F.fU)} · ${ef.ok ? "✔" : "✖"} ${ef.corto}`,
+    `Factor valores: ${pctTxt(F.fV)} · ${ev.ok ? "✔" : "✖"} ${ev.corto}`,
+    `Tolerancia: ${pctTxt(tolerancia())} · los sobrantes no compensan los faltantes`].join("\n");
+}
+let shArchivos = null;
+async function compartirYa(lista, texto) {   // se llama directo desde el toque, para que Android permita compartir
+  const fs = lista.map(a => new File([a.blob], a.nombre, {type: a.blob.type}));
+  const datos = fs.length ? {files: fs, text: texto} : {text: texto};
+  if (navigator.share && (!fs.length || (navigator.canShare && navigator.canShare({files: fs})))) {
+    try { await navigator.share(datos); return; }
+    catch (e) { if (e.name === "AbortError") return; if (fs.length) { try { await navigator.share({files: fs}); return; } catch (e2) { if (e2.name === "AbortError") return; } } }
+  }
+  // Sin soporte para compartir archivos: se descargan y se abre WhatsApp con el resumen
+  lista.forEach(a => descargar(a.blob, a.nombre));
+  if (lista.length) toast("Archivos descargados: adjúntalos en WhatsApp desde Descargas");
+  location.href = "https://wa.me/?text=" + encodeURIComponent(texto);
+}
+$("#btnShare").onclick = async () => {
+  if (!S.inv) return toast("No hay datos");
+  if (!puedeExportar()) return;
+  const d = $("#dlgShare"); shArchivos = null;
+  ["#shPdf", "#shXls", "#shAmbos", "#shAjustes"].forEach(id => $(id).disabled = true);
+  $("#shInfo").textContent = "Preparando archivos…"; $("#shTexto").textContent = textoResumen(); d.showModal();
+  try {
+    const b = base();
+    const pdf = {blob: await pdfDiferencias(), nombre: `Reporte_Conteo_${b}.pdf`};
+    const xls = {blob: blobLibro(await libroResultado()), nombre: `Inventario_${b}.xlsx`};
+    shArchivos = {pdf, xls};
+    $("#shInfo").textContent = `Listo. PDF ${(pdf.blob.size / 1024).toFixed(0)} KB · Excel ${(xls.blob.size / 1048576).toFixed(1)} MB. Elige qué enviar:`;
+    shArchivos.ajustes = archivosAjuste();
+    $("#shAjustes").disabled = !shArchivos.ajustes.length;
+    $("#shAjustes").textContent = shArchivos.ajustes.length ? `🔁 Enviar ajustes para Plade (${shArchivos.ajustes.map(a => a.tipo).join(" y ")})` : "🔁 Sin ajustes que enviar";
+    ["#shPdf", "#shXls", "#shAmbos"].forEach(id => $(id).disabled = false);
+  } catch (e) { $("#shInfo").textContent = "Error preparando archivos: " + e.message; }
+};
+$("#shPdf").onclick = () => shArchivos && compartirYa([shArchivos.pdf], textoResumen());
+$("#shXls").onclick = () => shArchivos && compartirYa([shArchivos.xls], textoResumen());
+$("#shAmbos").onclick = () => shArchivos && compartirYa([shArchivos.pdf, shArchivos.xls], textoResumen());
+$("#shAjustes").onclick = () => shArchivos && shArchivos.ajustes.length && compartirYa(shArchivos.ajustes, textoResumen() + "\n\n" + shArchivos.ajustes.map(a => `${a.tipo}: ${a.n} códigos · ${fmt(a.u)} und`).join("\n"));
+$("#shTxt").onclick = () => compartirYa([], textoResumen());
+$("#shCerrar").onclick = () => $("#dlgShare").close();
+
+/* ---------- Toast ---------- */
+let tt; function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 3600); }
+
+/* ---------- Sedes, tomas y contraseña ---------- */
+const SEDES = [
+  ["Consumed · San Carlos", ["consumed"]], ["Boulevar Cantón · San Carlos", ["boulevar", "canton"]],
+  ["Farmatown · Tinaco", ["farmatown"]], ["Farmatown 2 · Tinaco", ["farmatown", "2"]],
+  ["Premium Guacara · Guacara", ["premium", "guacara"]], ["Premium Campeón · Guacara", ["premium", "campeon"]],
+  ["Premium Los Guayos · Los Guayos", ["premium", "guayos"]],
+  ["Los Llanos 2021 · Tinaquillo", ["llanos"]], ["Los Llanos 2021 (sucursal) · Tinaquillo", ["llanos"]],
+  ["Panacea 2021 · Puerto Cabello", ["panacea"]], ["Panacea · San Carlos", ["panacea"]],
+  ["Panacea Flor Amarillo · Valencia", ["panacea", "flor"]], ["Mía 2025 · Valencia", ["mia"]],
+  ["La Tuya · Acarigua", ["tuya"]], ["Dr. José Gregorio Hernández · San Carlos", ["gregorio"]]];
+const pad2 = n => String(n).padStart(2, "0");
+const diaISO = t => { const d = new Date(t); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const fechaISO = f => { const m = String(f || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(f || ""); };
+const palabras = t => normH(t).split(" ").filter(w => w && !["farmacia", "farmacias", "fcia", "c", "a", "ca", "de", "la", "los", "el", "dr"].includes(w));
+function coincideSede(empresa, toma) {
+  const e = new Set(palabras(empresa)), cl = toma.claves && toma.claves.length ? toma.claves : palabras(toma.sede.split("·")[0]);
+  return cl.every(w => e.has(w));
+}
+async function listaTomas() { return (await DB.get("g:tomas")) || []; }
+async function guardarLista(l) { await DB.set("g:tomas", l); }
+let tocarTimer = null;
+function tocarToma() {   // actualiza el resumen de la toma en la lista
+  clearTimeout(tocarTimer);
+  tocarTimer = setTimeout(async () => {
+    if (!TOMA) return;
+    const l = await listaTomas(), t = l.find(x => x.id === TOMA.id); if (!t) return;
+    Object.assign(t, {act: Date.now(), lect: S.cnt.log.length, inv: !!S.inv, val: S.cortes.length > 0, resp: S.meta.resp || "", cerr: !!S.meta.cerrada});
+    await guardarLista(l);
+  }, 400);
+}
+async function eliminarToma(id) {
+  const prev = TOMA; TOMA = null; await DB.delPrefix(id + ":"); TOMA = prev && prev.id !== id ? prev : null;
+  await guardarLista((await listaTomas()).filter(x => x.id !== id));
+  if (!TOMA) { S = nuevoEstado(); IDX = {}; }
+}
+async function abrirToma(t) {
+  cerrarCamara(); saveCount(true);
+  TOMA = t; S = nuevoEstado(); S.meta.sede = t.sede;
+  const [meta, inv, cortes, cnt] = await Promise.all(CLAVES_TOMA.map(k => DB.get(k)));
+  if (meta) S.meta = {...meta, sede: t.sede}; if (!S.meta.resp && USER) S.meta.resp = USER.nombre; if (inv) S.inv = inv; if (cortes) S.cortes = cortes.filter(c => c.vend != null); if (cnt) S.cnt = cnt;
+  if (SRV) { SY.st = {pend: {}, ...((await DB.get("sync")) || {})}; EQUIPO = (await DB.get("equipo")) || {}; SY.eqVer++; if (t.pendCrear) SY.st.pend.crear = 1; }
+  SY.aplicando = true; await DB.set("meta", S.meta); SY.aplicando = false;
+  try { localStorage.setItem("ultimaToma", t.id); } catch (e) {}
+  HCACHE = null; construirIndice(); renderProceso(); renderScan(); irA("proceso");
+  $("#selToma").hidden = true;
+  if (SRV) { pintarSync(); sincronizar(); }
+}
+// Modo servidor: trae del servidor las tomas que este usuario puede trabajar y las guarda en el teléfono
+async function traerTomasServidor() {
+  const r = await api("tomas"); aplicarUsuarioServidor(r.user);
+  const l = await listaTomas(), ids = new Set(r.tomas.map(t => t.id));
+  for (const t of r.tomas) {
+    let x = l.find(y => y.id === t.id);
+    if (!x) { x = {id: t.id, creado: t.creado, act: 0, lect: 0}; l.push(x); }
+    Object.assign(x, {sede: t.sede, fecha: t.fecha, claves: t.claves, srv: true, borrada: false, pendCrear: false, inv: !!t.inv, cerr: !!t.meta.cerrada,
+      srvLect: t.conteo.lect, srvUsuarios: t.conteo.usuarios, act: Math.max(x.act || 0, t.act || 0)});
+  }
+  for (const x of l) if (x.srv && !ids.has(x.id)) x.borrada = true;
+  await guardarLista(l);
+}
+async function mostrarSelector() {
+  cerrarCamara();
+  if (SRV && SY.token && !mostrarSelector.trayendo) {
+    mostrarSelector.trayendo = true; $("#tSrvMsg").hidden = false; $("#tSrvMsg").textContent = "Buscando tomas en el servidor…";
+    traerTomasServidor().then(() => { if (!$("#selToma").hidden) mostrarSelector(); })
+      .catch(e => { $("#tSrvMsg").textContent = e.red ? "📴 Sin conexión: se muestran las tomas guardadas en este teléfono." : "⚠ " + e.message; if (e.status === 401) sesionVencida(); })
+      .finally(() => { mostrarSelector.trayendo = false; });
+  }
+  const sel = $("#tSede");
+  sel.innerHTML = SEDES.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join("") + `<option value="otra">Otra…</option>`;
+  let ult = null; try { ult = localStorage.getItem("ultimaToma"); } catch (e) {}
+  const l = (await listaTomas()).sort((a, b) => (b.act || 0) - (a.act || 0));
+  const u = l.find(x => x.id === ult) || l[0];
+  if (u) { const i = SEDES.findIndex(s => s[0] === u.sede); sel.value = i >= 0 ? String(i) : "otra"; $("#tSedeOtra").value = i >= 0 ? "" : u.sede; }
+  $("#tSedeOtra").hidden = sel.value !== "otra";
+  $("#tFecha").value = diaISO(Date.now());
+  if (SRV) {
+    $("#tNueva").hidden = !puede("cargar");
+    $("#tListaTit").textContent = puede("cargar") ? "Tomas disponibles" : "Tomas asignadas";
+    if (!mostrarSelector.trayendo && !$("#tSrvMsg").textContent.startsWith("📴") && !$("#tSrvMsg").textContent.startsWith("⚠"))
+      $("#tSrvMsg").textContent = puede("cargar") ? "☁ Al crear una toma queda disponible para todos los teléfonos. Carga aquí el inventario una sola vez." : "☁ Estas son las tomas creadas por el administrador. Toca Abrir para descargarla y empezar a contar.";
+  }
+  $("#tLista").innerHTML = l.length ? l.map(t => `<li><div class="g"><div><b>${esc(t.sede)}</b> · ${fechaISO(t.fecha)}${SRV ? (t.srv ? " ☁" : " 📱") : ""}</div>
+      <small>${t.borrada ? "⚠ Eliminada del servidor · " : ""}${t.cerr ? "🔒 Cerrada · " : ""}${t.inv ? "Inventario cargado" : "Sin inventario"} · ${(t.lect || 0).toLocaleString("es-VE")} lecturas${SRV && puede("equipo") && t.srvLect != null ? ` (equipo: ${t.srvLect.toLocaleString("es-VE")} de ${t.srvUsuarios || 0} usuario${t.srvUsuarios === 1 ? "" : "s"})` : ""}${t.val ? " · validada" : ""}${t.resp ? " · " + esc(t.resp) : ""}</small></div>
+      <button data-a="${esc(t.id)}" class="btn sec" style="padding:8px 12px">Abrir</button><button data-d="${esc(t.id)}">🗑</button></li>`).join("")
+    : `<li class="mut">${SRV && !puede("cargar") ? "Aún no hay tomas asignadas. Pide al administrador que cree la toma de tu sede." : "Aún no hay tomas guardadas."}</li>`;
+  $("#tLista").querySelectorAll("button[data-a]").forEach(b => b.onclick = () => abrirToma(l.find(x => x.id === b.dataset.a)));
+  $("#tLista").querySelectorAll("button[data-d]").forEach(b => b.onclick = async () => {
+    const t = l.find(x => x.id === b.dataset.d);
+    if (!confirm(`¿Eliminar la toma de ${t.sede} del ${fechaISO(t.fecha)}? Se borran su inventario, conteo e Items Facturados.`)) return;
+    if (!await pedirClave("Eliminar toma", `Toma de <b>${esc(t.sede)}</b> del ${fechaISO(t.fecha)}.<br>Autoriza un usuario con permiso para eliminar tomas.`, "🗑 Eliminar", "cerrar")) return;
+    await eliminarToma(t.id); mostrarSelector(); });
+  $("#selToma").hidden = false;
+}
+$("#tSede").onchange = () => { $("#tSedeOtra").hidden = $("#tSede").value !== "otra"; if (!$("#tSedeOtra").hidden) $("#tSedeOtra").focus(); };
+$("#btnAbrirToma").onclick = async () => {
+  const v = $("#tSede").value, f = $("#tFecha").value;
+  const sede = v === "otra" ? $("#tSedeOtra").value.trim() : SEDES[+v][0];
+  if (!sede) return toast("Escribe el nombre de la sede");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return toast("Indica la fecha del conteo");
+  const id = slug(sede) + "_" + f, l = await listaTomas();
+  let t = l.find(x => x.id === id);
+  if (!t) { t = {id, sede, fecha: f, claves: v === "otra" ? palabras(sede) : SEDES[+v][1], creado: Date.now(), act: Date.now(), lect: 0}; l.push(t);
+    if (SRV) { try { await api("tomas", {method: "POST", body: {id, sede, fecha: f, claves: t.claves}}); t.srv = true; }
+               catch (e) { if (!e.red) return toast(e.message); t.pendCrear = true; toast("Sin conexión: la toma se creará en el servidor al volver la señal"); } }
+    await guardarLista(l); }
+  else toast(`Abriendo la toma existente de ${sede} del ${fechaISO(f)}`);
+  abrirToma(t);
+};
+$("#btnCambiarToma").onclick = mostrarSelector;
+$("#hdrBrand").onclick = mostrarSelector;
+
+// Usuarios y contraseñas (las contraseñas se guardan cifradas con SHA-256 en este teléfono)
+let USER = null;
+// Permisos por usuario. Cada perfil trae permisos por defecto que el administrador puede ajustar.
+const PERMISOS = [
+  ["verStockAbierta", "Ver la existencia del sistema con la toma ABIERTA"],
+  ["verStockCerrada", "Ver la existencia del sistema con la toma CERRADA"],
+  ["verDifAbierta", "Ver diferencias y resultados con la toma ABIERTA"],
+  ["verDifCerrada", "Ver diferencias y resultados con la toma CERRADA"],
+  ["cargar", "Cargar Reporte de Inventario e Items Facturados"],
+  ["exportar", "Exportar y enviar reportes (Excel, PDF, WhatsApp, ajustes)"],
+  ["cerrar", "Cerrar, reabrir y eliminar tomas"],
+  ["quitar", "Autorizar quitar productos del conteo"],
+  ["usuarios", "Administrar usuarios"],
+  ["equipo", "Ver y consolidar el conteo de todo el equipo (modo servidor)"]];
+const PERFILES_USR = {
+  admin:   {nombre: "Administrador", p: {verStockAbierta: 1, verStockCerrada: 1, verDifAbierta: 1, verDifCerrada: 1, cargar: 1, exportar: 1, cerrar: 1, quitar: 1, usuarios: 1, equipo: 1}},
+  gerente: {nombre: "Gerente",       p: {verStockAbierta: 0, verStockCerrada: 1, verDifAbierta: 0, verDifCerrada: 1, cargar: 1, exportar: 1, cerrar: 0, quitar: 0, usuarios: 0, equipo: 1}},
+  inv:     {nombre: "Inventarista",  p: {verStockAbierta: 0, verStockCerrada: 0, verDifAbierta: 0, verDifCerrada: 0, cargar: 1, exportar: 0, cerrar: 0, quitar: 0, usuarios: 0, equipo: 0}}};
+const permisosDe = u => {
+  const p = {...(PERFILES_USR[u.rol] || PERFILES_USR.inv).p, ...(u.perm || {})};
+  if (u.perm && "verStock" in u.perm && !("verStockCerrada" in u.perm)) p.verStockCerrada = u.perm.verStock;   // permisos de la v14
+  delete p.verStock; return p;
+};
+const nombrePerfil = r => (PERFILES_USR[r] || PERFILES_USR.inv).nombre;
+const puede = p => !!(USER && USER.perm && USER.perm[p]);
+const cerrada = () => !!(S.meta && S.meta.cerrada);
+const verDif = () => cerrada() ? puede("verDifCerrada") : puede("verDifAbierta");
+// Con la toma abierta la consulta de stock queda bloqueada para quien no tenga ese permiso (evita cuadres)
+const verStock = () => cerrada() ? puede("verStockCerrada") : puede("verStockAbierta");
+function bloqueada() { if (!cerrada()) return false; toast("🔒 La toma está cerrada: no se puede modificar. Reábrela con contraseña desde Cierre."); return true; }
+async function hashPass(pw, salt) {
+  const data = new TextEncoder().encode(salt + "|" + pw);
+  if (crypto.subtle) { const h = await crypto.subtle.digest("SHA-256", data); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join(""); }
+  let h = 5381; for (const b of data) h = ((h << 5) + h + b) >>> 0; return "x" + h.toString(16);
+}
+const normUser = u => String(u || "").trim().toLowerCase();
+async function listaUsuarios() { return (await DB.get("g:users")) || []; }
+async function guardarUsuario(nombre, usuario, pw, rol, perm) {
+  const l = await listaUsuarios(), u = normUser(usuario), salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const rec = {u, nombre: nombre.trim(), rol, creado: Date.now()};
+  if (perm) rec.perm = perm;
+  if (pw) { rec.salt = salt; rec.hash = await hashPass(pw, salt); }
+  const i = l.findIndex(x => x.u === u);
+  if (i >= 0) { const nuevo = {...l[i], ...rec, creado: l[i].creado}; if (!perm) delete nuevo.perm; l[i] = nuevo; } else l.push(rec);
+  await DB.set("g:users", l); return rec;
+}
+async function validarUsuario(usuario, pw) {
+  const u = (await listaUsuarios()).find(x => x.u === normUser(usuario));
+  return u && await hashPass(pw, u.salt) === u.hash ? u : null;
+}
+let modoLock = "entrar";
+const campos = (...ids) => ["#luNombre", "#luUser", "#pw1", "#pw2"].forEach(id => { $(id).hidden = !ids.includes(id); $(id).value = id === "#luUser" && ids.includes(id) ? (pref("ultimoUsuario") || "") : ""; });
+async function mostrarLock(modo) {
+  const hay = SRV || (await listaUsuarios()).length > 0;
+  modoLock = modo || (hay ? "entrar" : "crear");
+  if (modoLock === "crear") { campos("#luNombre", "#luUser", "#pw1", "#pw2"); $("#lockMsg").innerHTML = "Primera vez en este teléfono: <b>crea el usuario administrador</b>. Con él podrás crear los usuarios de los inventaristas."; }
+  if (modoLock === "entrar") { campos("#luUser", "#pw1"); $("#lockMsg").innerHTML = SRV ? "Ingresa con el <b>usuario</b> y <b>contraseña</b> que te dio el administrador.<br><small>La primera vez necesitas internet; después puedes entrar sin conexión.</small>" : "Ingresa tu <b>usuario</b> y <b>contraseña</b>."; }
+  if (modoLock === "actual") { campos("#pw1"); $("#lockMsg").innerHTML = `<b>${esc(USER.nombre)}</b>: escribe tu contraseña <b>actual</b>.`; }
+  if (modoLock === "nueva") { campos("#pw1", "#pw2"); $("#lockMsg").innerHTML = "Escribe tu <b>nueva</b> contraseña dos veces."; }
+  $("#pw1").placeholder = modoLock === "nueva" ? "Nueva contraseña" : "Contraseña";
+  $("#btnEntrar").hidden = false;
+  $("#btnEntrar").textContent = modoLock === "crear" ? "Crear usuario y entrar" : modoLock === "nueva" ? "Guardar contraseña" : modoLock === "actual" ? "Continuar" : "Entrar";
+  $("#btnOlvide").hidden = modoLock !== "entrar";
+  $("#lock").hidden = false;
+  setTimeout(() => { const f = ["#luNombre", "#luUser", "#pw1"].find(id => !$(id).hidden && !$(id).value); if (f) $(f).focus(); }, 100);
+}
+async function enviarLock() {
+  const nombre = $("#luNombre").value.trim(), usuario = normUser($("#luUser").value), p1 = $("#pw1").value, p2 = $("#pw2").value;
+  if (modoLock === "crear") {
+    if (!nombre) return toast("Escribe el nombre");
+    if (!/^[a-z0-9._-]{3,}$/.test(usuario)) return toast("Usuario: mínimo 3 caracteres, sin espacios");
+    if (p1.length < 4) return toast("La contraseña debe tener al menos 4 caracteres");
+    if (p1 !== p2) return toast("Las contraseñas no coinciden");
+    return iniciarSesion(await guardarUsuario(nombre, usuario, p1, "admin"));
+  }
+  if (modoLock === "nueva") {
+    if (p1.length < 4) return toast("La contraseña debe tener al menos 4 caracteres");
+    if (p1 !== p2) return toast("Las contraseñas no coinciden");
+    if (SRV) {
+      try { const r = await api("me/password", {method: "POST", body: {actual: SY.pwActual, nueva: p1}}); await guardarSesionServidor(r, p1); }
+      catch (e) { return toast(e.red ? "Necesitas conexión para cambiar la contraseña" : e.message); }
+      finally { SY.pwActual = ""; }
+      toast("Contraseña cambiada"); $("#lock").hidden = true; return;
+    }
+    await guardarUsuario(USER.nombre, USER.u, p1, USER.rol, USER.permPropio); toast("Contraseña cambiada"); $("#lock").hidden = true; return;
+  }
+  if (SRV && modoLock === "entrar") {
+    $("#btnEntrar").disabled = true;
+    try { const r = await api("login", {method: "POST", body: {usuario, pw: p1}}); return iniciarSesion(await guardarSesionServidor(r, p1)); }
+    catch (e) {
+      if (!e.red) { $("#pw1").value = ""; if (navigator.vibrate) navigator.vibrate(200); return toast(e.message); }
+      // Sin conexión: se valida con la copia guardada en este teléfono la última vez que entró con internet
+      const u = await validarUsuario(usuario, p1);
+      if (!u) { $("#pw1").value = ""; return toast("Sin conexión: este usuario aún no ha entrado con internet en este teléfono, o la contraseña no coincide"); }
+      SY.token = ((await DB.get("g:tokens")) || {})[u.u] || null;
+      toast("📴 Sin conexión: trabajarás local y se sincronizará al volver la señal");
+      return iniciarSesion(u);
+    } finally { $("#btnEntrar").disabled = false; }
+  }
+  const u = await validarUsuario(modoLock === "actual" ? USER.u : usuario, p1);
+  if (u && modoLock === "actual") SY.pwActual = p1;
+  if (!u) { $("#pw1").value = ""; if (navigator.vibrate) navigator.vibrate(200); return toast("Usuario o contraseña incorrectos"); }
+  if (modoLock === "actual") return mostrarLock("nueva");
+  iniciarSesion(u);
+}
+function iniciarSesion(u) {
+  const mismo = USER && USER.u === u.u;
+  USER = {u: u.u, nombre: u.nombre, rol: u.rol, perm: permisosDe(u), permPropio: u.perm}; pref("ultimoUsuario", u.u);
+  $("#lock").hidden = true; ultimaActividad = Date.now();
+  $("#usrActual").innerHTML = `Sesión: <b>${esc(USER.nombre)}</b> (${USER.u}) · ${nombrePerfil(USER.rol)}`;
+  $("#btnUsuarios").hidden = SRV ? !(puede("usuarios") || puede("equipo")) : !puede("usuarios");
+  if (SRV) $("#btnUsuarios").textContent = "🖥 Panel central (usuarios y resultados)";
+  if (TOMA && mismo) { renderTodo(); if (SRV) sincronizar(); return; }
+  TOMA = null; mostrarSelector();
+}
+$("#btnEntrar").onclick = enviarLock;
+["#luNombre", "#luUser", "#pw1", "#pw2"].forEach(id => $(id).addEventListener("keydown", e => {
+  if (e.key !== "Enter") return; e.preventDefault();
+  const orden = ["#luNombre", "#luUser", "#pw1", "#pw2"].filter(x => !$(x).hidden), i = orden.indexOf(id);
+  if (i < orden.length - 1) $(orden[i + 1]).focus(); else enviarLock();
+}));
+$("#btnOlvide").onclick = async () => {
+  if (SRV) return alert("Pide al administrador que te asigne una contraseña nueva desde el panel central.");
+  const admins = (await listaUsuarios()).filter(x => x.rol === "admin");
+  if (admins.length && !confirm("Pide a un administrador que te asigne una contraseña nueva desde Inicio → Usuarios.\n\n¿No hay ningún administrador disponible? Pulsa Aceptar para ver la opción de borrar todo.")) return;
+  if (!confirm("Las contraseñas no se pueden recuperar. La única opción es BORRAR TODAS LAS TOMAS Y USUARIOS de este teléfono y empezar de cero. ¿Continuar?")) return;
+  if (!confirm("Confirma: se borrarán todas las tomas y usuarios de este teléfono.")) return;
+  await DB.clear(); TOMA = null; USER = null; S = nuevoEstado(); IDX = {}; mostrarLock("crear");
+};
+$("#btnCambiarPass").onclick = () => mostrarLock("actual");
+$("#btnBloquear").onclick = () => { cerrarCamara(); saveCount(true); USER = null; mostrarLock("entrar"); };
+// Administración de usuarios (solo administradores)
+async function pintarUsuarios() {
+  const l = await listaUsuarios();
+  $("#usrLista").innerHTML = l.map(u => `<li><div class="g"><div><b>${esc(u.nombre)}</b> · ${esc(u.u)}</div><small>${nombrePerfil(u.rol)}${u.perm ? " (personalizado)" : ""}${u.u === USER.u ? " · tú" : ""}</small></div>
+    <button data-e="${esc(u.u)}" title="Editar">✎</button>${u.u === USER.u ? "" : `<button data-d="${esc(u.u)}" title="Eliminar">🗑</button>`}</li>`).join("");
+  $("#usrLista").querySelectorAll("button[data-e]").forEach(b => b.onclick = () => { const u = l.find(x => x.u === b.dataset.e);
+    $("#nuNombre").value = u.nombre; $("#nuUser").value = u.u; $("#nuRol").value = u.rol; $("#nuPw").value = ""; pintarPermisos(permisosDe(u)); $("#nuNombre").focus();
+    toast("Ajusta permisos o escribe una nueva contraseña y guarda"); });
+  $("#usrLista").querySelectorAll("button[data-d]").forEach(b => b.onclick = async () => {
+    const u = l.find(x => x.u === b.dataset.d);
+    if (permisosDe(u).usuarios && l.filter(x => permisosDe(x).usuarios).length < 2) return toast("Debe quedar al menos un usuario que administre usuarios");
+    if (!confirm(`¿Eliminar el usuario ${u.nombre} (${u.u})?`)) return;
+    await DB.set("g:users", l.filter(x => x.u !== u.u)); pintarUsuarios(); });
+}
+function pintarPermisos(p) {
+  $("#nuPerms").innerHTML = PERMISOS.map(([k, t]) => `<label><input type="checkbox" data-p="${k}" ${p[k] ? "checked" : ""}> ${t}</label>`).join("");
+}
+const leerPermisos = () => { const p = {}; $("#nuPerms").querySelectorAll("input[data-p]").forEach(i => p[i.dataset.p] = i.checked ? 1 : 0); return p; };
+$("#nuRol").onchange = () => pintarPermisos(PERFILES_USR[$("#nuRol").value].p);
+$("#btnUsuarios").onclick = async () => { if (SRV) return window.open(new URL("admin/", location.href).href, "_blank");
+  if (!puede("usuarios")) return; ["#nuNombre", "#nuUser", "#nuPw"].forEach(id => $(id).value = ""); $("#nuRol").value = "inv"; pintarPermisos(PERFILES_USR.inv.p); await pintarUsuarios(); $("#dlgUsr").showModal(); };
+$("#usrCerrar").onclick = () => $("#dlgUsr").close();
+$("#usrGuardar").onclick = async () => {
+  const n = $("#nuNombre").value.trim(), u = normUser($("#nuUser").value), pw = $("#nuPw").value, rol = $("#nuRol").value;
+  if (!n) return toast("Escribe el nombre");
+  if (!/^[a-z0-9._-]{3,}$/.test(u)) return toast("Usuario: mínimo 3 caracteres, sin espacios");
+  const l = await listaUsuarios(), prev = l.find(x => x.u === u);
+  if (!prev && pw.length < 4) return toast("La contraseña debe tener al menos 4 caracteres");
+  if (prev && pw && pw.length < 4) return toast("La contraseña debe tener al menos 4 caracteres");
+  const pr = leerPermisos(), base = PERFILES_USR[rol].p, perso = PERMISOS.some(([k]) => !!pr[k] !== !!base[k]);
+  if (prev && permisosDe(prev).usuarios && !pr.usuarios && l.filter(x => permisosDe(x).usuarios).length < 2) return toast("Debe quedar al menos un usuario que administre usuarios");
+  await guardarUsuario(n, u, pw, rol, perso ? pr : null);
+  if (u === USER.u) { USER.rol = rol; USER.nombre = n; USER.perm = pr; USER.permPropio = perso ? pr : null; $("#btnUsuarios").hidden = !puede("usuarios"); renderTodo(); }
+  toast(prev ? `Usuario ${u} actualizado` : `Usuario ${u} creado`);
+  ["#nuNombre", "#nuUser", "#nuPw"].forEach(id => $(id).value = ""); pintarUsuarios();
+};
+// Volver a pedir la contraseña si la app estuvo en segundo plano más de 5 minutos
+let ultimaActividad = Date.now(), ocultaDesde = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) ocultaDesde = Date.now();
+  else if (ocultaDesde && Date.now() - ocultaDesde > 5 * 60 * 1000 && $("#lock").hidden && USER) { cerrarCamara(); saveCount(true); mostrarLock("entrar"); }
+});
+
+/* ---------- Sincronización con el servidor central (solo en modo servidor) ----------
+   - El administrador carga el inventario y los Items Facturados UNA vez; se suben y cada teléfono los descarga.
+   - Cada teléfono trabaja con su copia local (sin internet también) y sube su conteo cuando hay conexión.
+   - Quien tenga el permiso "equipo" recibe los conteos de todos y ve el resultado consolidado.        */
+const SY = {token: null, device: "", st: {pend: {}}, corriendo: false, otraVez: false, aplicando: false, err: "", grant: null, pwActual: "", eqVer: 0, timer: null};
+let EQUIPO = {};   // "usuario|equipo" → conteo de ese teléfono (solo para quien consolida)
+async function api(ruta, opt = {}) {
+  const h = {"Content-Type": "application/json"}; if (SY.token) h.Authorization = "Bearer " + SY.token;
+  let body = opt.body !== undefined ? JSON.stringify(opt.body) : undefined;
+  if (body && body.length > 30000 && window.CompressionStream) {   // inventarios y conteos grandes viajan comprimidos
+    try { body = await new Response(new Blob([body]).stream().pipeThrough(new CompressionStream("gzip"))).blob(); h["Content-Encoding"] = "gzip"; } catch (e) {}
+  }
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), opt.timeout || 45000);
+  let r;
+  try { r = await fetch(API + ruta, {method: opt.method || "GET", headers: h, body, signal: ctl.signal, cache: "no-store"}); }
+  catch (e) { const err = new Error("Sin conexión con el servidor"); err.red = true; throw err; }
+  finally { clearTimeout(to); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const err = new Error(data.error || "Error del servidor (" + r.status + ")"); err.status = r.status; err.data = data; err.red = r.status >= 502 && r.status <= 504; throw err; }
+  return data;
+}
+// Guarda la sesión y una copia del usuario (con su contraseña cifrada) para poder entrar sin conexión
+async function guardarSesionServidor(r, pw) {
+  SY.token = r.token;
+  const tk = (await DB.get("g:tokens")) || {}; tk[r.user.u] = r.token; await DB.set("g:tokens", tk);
+  const l = await listaUsuarios(), salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const rec = {u: r.user.u, nombre: r.user.nombre, rol: r.user.rol, perm: r.user.perm, srv: 1, salt, hash: await hashPass(pw, salt), creado: Date.now()};
+  const i = l.findIndex(x => x.u === rec.u); if (i >= 0) l[i] = rec; else l.push(rec);
+  await DB.set("g:users", l); return rec;
+}
+// Permisos actualizados desde el servidor (si el administrador los cambia, el teléfono los recibe)
+async function aplicarUsuarioServidor(su) {
+  if (!su || !USER || su.u !== USER.u) return;
+  const cambio = JSON.stringify(su.perm) !== JSON.stringify(USER.perm) || su.rol !== USER.rol;
+  USER.nombre = su.nombre; USER.rol = su.rol; USER.perm = permisosDe({rol: su.rol, perm: su.perm});
+  const l = await listaUsuarios(), x = l.find(y => y.u === su.u); if (x) { Object.assign(x, {nombre: su.nombre, rol: su.rol, perm: su.perm}); await DB.set("g:users", l); }
+  if (cambio) { $("#usrActual").innerHTML = `Sesión: <b>${esc(USER.nombre)}</b> (${USER.u}) · ${nombrePerfil(USER.rol)}`; $("#btnUsuarios").hidden = !(puede("usuarios") || puede("equipo")); renderTodo(); }
+}
+function sesionVencida() { SY.token = null; SY.err = "sesion"; pintarSync(); toast("Tu sesión venció: cierra sesión y entra de nuevo con internet para sincronizar"); }
+// Lo que cambia en el teléfono queda pendiente de subir (el conteo, y lo que carga el administrador)
+let pendSeq = 0;
+function marcarPend(tid, k) {
+  if (!SRV || SY.aplicando || !tid || !["inv", "cortes", "meta", "cnt"].includes(k)) return;
+  const v = Date.now() * 1000 + (++pendSeq % 1000);
+  if (TOMA && TOMA.id === tid) { SY.st.pend[k] = v; guardarSync(); programarSync(k === "cnt" ? 6000 : 400); return; }
+  // Otra toma (p. ej. se guardó el conteo justo al cambiar de toma)
+  DB.get("raw:" + tid + ":sync").then(st => { st = st || {pend: {}}; st.pend = st.pend || {}; st.pend[k] = v; return DB.set("raw:" + tid + ":sync", st); }).catch(() => {});
+}
+function guardarSync() { if (TOMA) DB.set("raw:" + TOMA.id + ":sync", SY.st).catch(() => {}); }
+function programarSync(ms) { clearTimeout(SY.timer); SY.timer = setTimeout(() => sincronizar(), ms); }
+const nPend = () => Object.keys(SY.st.pend || {}).length;
+function pintarSync() {
+  const e = $("#syncSt"); if (!SRV) return;
+  e.hidden = !USER;
+  const n = nPend(), st = SY.st;
+  e.textContent = SY.corriendo ? "⏳ Sincronizando…" : SY.err === "offline" ? (n ? "📴 Sin señal · pendiente" : "📴 Sin señal")
+    : SY.err === "sesion" ? "⚠ Entra de nuevo" : SY.err ? "⚠ Error de sincronización" : st.bloq ? "🔒 Cerrada en servidor"
+    : n ? "⏳ Pendiente" : st.ult ? "☁ " + hora(st.ult) : "☁";
+  e.title = SY.err && SY.err !== "offline" && SY.err !== "sesion" ? SY.err : st.ult ? "Última sincronización: " + fechaHora(st.ult) : "";
+}
+$("#syncSt").onclick = () => {
+  const st = SY.st, n = nPend();
+  toast(SY.err === "offline" ? `Sin conexión. ${n ? "Hay datos pendientes de subir; " : ""}se sincroniza solo al volver la señal.`
+    : SY.err && SY.err !== "sesion" ? "⚠ " + SY.err : st.bloq ? "La toma está cerrada en el servidor: tus lecturas nuevas no se pueden subir." : `Sincronizando… ${st.ult ? "Última: " + fechaHora(st.ult) : ""}`);
+  sincronizar();
+};
+// Une el conteo propio con el de los demás teléfonos (solo para ver resultados; cada quien corrige lo suyo)
+let CNCACHE = null;
+function CN() {
+  if (!SRV || !USER || !puede("equipo")) return S.cnt;
+  const mio = USER.u + "|" + SY.device, otros = Object.keys(EQUIPO).filter(k => k !== mio && EQUIPO[k]).map(k => EQUIPO[k]);
+  if (!otros.length) return S.cnt;
+  const clave = [S.cnt.seq, S.cnt.log.length, Object.keys(S.cnt.conteo).length, (S.cnt.elim || []).length, SY.eqVer, TOMA && TOMA.id].join("|");
+  if (CNCACHE && CNCACHE.clave === clave) return CNCACHE.c;
+  const m = {conteo: {...S.cnt.conteo}, log: [...S.cnt.log], raw: {}, elim: [...(S.cnt.elim || [])], seq: S.cnt.seq, last: S.cnt.last};
+  for (const c of otros) {
+    for (const k in c.conteo) m.conteo[k] = r3((m.conteo[k] || 0) + (+c.conteo[k] || 0));
+    Object.assign(m.raw, c.raw || {}); for (const l of c.log || []) m.log.push(l); if (c.elim) m.elim.push(...c.elim);
+  }
+  Object.assign(m.raw, S.cnt.raw); m.log.sort((a, b) => a.t - b.t);
+  CNCACHE = {clave, c: m}; return m;
+}
+function adoptarMeta(t) {
+  const m = t.meta || {};
+  S.meta = {...S.meta, cerrada: m.cerrada || null, historial: m.historial || [], ...(m.tol != null ? {tol: m.tol} : {})};
+  SY.st.meta_ver = t.meta_ver; if (!m.cerrada) SY.st.bloq = false;
+  return DB.set("meta", S.meta);
+}
+async function sincronizar() {
+  if (!SRV || !TOMA || !USER) return;
+  if (!SY.token) { SY.err = "sesion"; pintarSync(); return; }
+  if (SY.corriendo) { SY.otraVez = true; return; }
+  SY.corriendo = true; SY.otraVez = false; pintarSync();
+  const id = TOMA.id, st = SY.st, ruta = "tomas/" + encodeURIComponent(id), misma = () => TOMA && TOMA.id === id;
+  const hecho = (k, v) => { if (st.pend[k] === v) delete st.pend[k]; };
+  let cambio = false;
+  try {
+    // 1) Subir lo pendiente
+    if (st.pend.crear) { await api("tomas", {method: "POST", body: {id, sede: TOMA.sede, fecha: TOMA.fecha, claves: TOMA.claves}}); delete st.pend.crear;
+      const l = await listaTomas(), x = l.find(y => y.id === id); if (x) { x.pendCrear = false; x.srv = true; await guardarLista(l); } }
+    if (st.pend.inv) { const v = st.pend.inv;
+      if (S.inv && puede("cargar")) { const t = await api(ruta + "/inv", {method: "PUT", body: {inv: S.inv}, timeout: 180000}); st.inv_ver = t.inv_ver; st.inv_stock = true; st.cortes_ver = t.cortes_ver; toast("☁ Inventario subido: los teléfonos lo recibirán al sincronizar"); }
+      hecho("inv", v); }
+    if (st.pend.cortes) { const v = st.pend.cortes;
+      if (puede("cargar")) { try { const t = await api(ruta + "/cortes", {method: "PUT", body: {cortes: S.cortes, base_inv: st.inv_ver}, timeout: 120000}); st.cortes_ver = t.cortes_ver; if (S.cortes.length) toast("☁ Items Facturados subido al servidor"); }
+        catch (e) { if (e.status !== 409 && e.status !== 423) throw e; toast("⚠ " + e.message); st.cortes_ver = -1; } }
+      hecho("cortes", v); }
+    if (st.pend.meta) { const v = st.pend.meta;
+      try { const t = await api(ruta + "/meta", {method: "PUT", body: {meta: {cerrada: S.meta.cerrada || null, historial: S.meta.historial || [], tol: S.meta.tol}, base: st.meta_ver, grant: st.grant}});
+            SY.aplicando = true; await adoptarMeta(t); SY.aplicando = false; }
+      catch (e) { if (![403, 409, 423].includes(e.status)) throw e; toast("⚠ " + e.message + ". Se usa el estado del servidor.");
+            if (e.data && e.data.toma) { SY.aplicando = true; await adoptarMeta(e.data.toma); SY.aplicando = false; cambio = true; } }
+      st.grant = null; hecho("meta", v); }
+    if (st.pend.cnt && !st.bloq && !S.cnt.log.length && !st.cntSubido) delete st.pend.cnt;   // nada contado aún: no se sube
+    if (st.pend.cnt && !st.bloq) { const v = st.pend.cnt;
+      try { await api(ruta + "/conteo", {method: "PUT", body: {device: SY.device, cnt: S.cnt}, timeout: 120000}); hecho("cnt", v); st.cntSubido = Date.now(); }
+      catch (e) { if (e.status !== 423) throw e; st.bloq = true; toast("🔒 " + e.message); } }
+    if (!misma()) return;
+    // 2) Bajar lo nuevo
+    const t = await api(ruta); if (!misma()) return;
+    if (t.meta_ver !== st.meta_ver && !st.pend.meta) { SY.aplicando = true; await adoptarMeta(t); SY.aplicando = false; cambio = true; }
+    if (t.inv_ver && !st.pend.inv && (t.inv_ver !== st.inv_ver || t.inv_stock !== !!st.inv_stock || !S.inv)) {
+      pintarSync(); const r = await api(ruta + "/inv", {timeout: 180000}); if (!misma()) return;
+      const reemplazo = !!S.inv && S.inv.archivo !== r.inv.archivo;
+      S.inv = r.inv; SY.aplicando = true; await DB.set("inv", S.inv); SY.aplicando = false;
+      st.inv_ver = r.ver; st.inv_stock = r.stock; HCACHE = null; construirIndice(); tocarToma(); cambio = true;
+      toast(reemplazo ? "☁ El administrador actualizó el inventario" : `☁ Inventario descargado: ${S.inv.n.toLocaleString("es-VE")} productos`);
+    }
+    if (t.cortes_ver != null && t.cortes_ver !== st.cortes_ver && !st.pend.cortes) {
+      const r = await api(ruta + "/cortes"); if (!misma()) return;
+      S.cortes = (r.cortes || []).filter(c => c.vend != null); SY.aplicando = true; await DB.set("cortes", S.cortes); SY.aplicando = false;
+      st.cortes_ver = r.ver; cambio = true;
+    }
+    if (puede("equipo")) {
+      const r = await api(ruta + "/conteos?since=" + (st.eqSince || 0), {timeout: 120000}); if (!misma()) return;
+      const vivos = new Set(r.keys.map(k => k.u + "|" + k.device)); let ec = false;
+      for (const k of Object.keys(EQUIPO)) if (!vivos.has(k)) { delete EQUIPO[k]; ec = true; }
+      for (const d of r.data) { EQUIPO[d.u + "|" + d.device] = d.cnt; ec = true; }
+      st.eqSince = r.keys.reduce((a, k) => Math.max(a, k.act || 0), st.eqSince || 0);
+      st.equipo = r.keys.map(k => ({u: k.u, nombre: k.nombre, lect: k.lect, prod: k.prod, act: k.act}));
+      if (ec) { SY.eqVer++; await DB.set("equipo", EQUIPO); cambio = true; }
+    }
+    st.ult = Date.now(); SY.err = "";
+  } catch (e) {
+    SY.aplicando = false;
+    SY.err = e.red ? "offline" : e.message;
+    if (e.status === 401) sesionVencida();
+    if (e.status === 404 && misma()) { SY.err = "Esta toma fue eliminada del servidor"; st.pend = {}; }
+  } finally {
+    SY.corriendo = false;
+    if (misma()) guardarSync();
+    pintarSync();
+    if (cambio && misma()) { renderTodo(); renderHeader(); }
+    if (SY.otraVez || (misma() && nPend() && !SY.err && !st.bloq)) programarSync(1500);
+  }
+}
+if (SRV) {
+  setInterval(() => { if (!document.hidden) sincronizar(); }, 20000);
+  window.addEventListener("online", () => sincronizar());
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { if (nPend()) sincronizar(); } else sincronizar(); });
+}
+
+/* ---------- Arranque ---------- */
+(async function init() {
+  try {
+    await DB.open();
+    if (SRV) {   // identificador de este teléfono (cada teléfono sube su propio conteo)
+      SY.device = await DB.get("g:device");
+      if (!SY.device) { SY.device = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 36); await DB.set("g:device", SY.device); }
+    }
+    // Migración: contraseña única de la versión anterior → usuario "admin"
+    const viejaPass = await DB.get("g:pass");
+    if (viejaPass && !(await listaUsuarios()).length) {
+      await DB.set("g:users", [{u: "admin", nombre: "Administrador", rol: "admin", salt: viejaPass.salt, hash: viejaPass.hash, creado: Date.now()}]);
+      await DB.del(["g:pass"]); pref("ultimoUsuario", "admin");
+    }
+    // Migración: datos de la versión anterior (sin sede/fecha) → se convierten en una toma
+    const viejo = await DB.get("raw:inv"), viejoCnt = await DB.get("raw:cnt");
+    if (viejo || (viejoCnt && viejoCnt.log && viejoCnt.log.length)) {
+      const meta = (await DB.get("raw:meta")) || {}, sede = meta.sede || (viejo && viejo.empresa) || "Sin sede";
+      const f = diaISO(viejo ? viejo.t : Date.now()), id = slug(sede) + "_" + f, l = await listaTomas();
+      if (!l.find(x => x.id === id)) l.push({id, sede, fecha: f, claves: palabras(sede), creado: Date.now(), act: Date.now(), lect: viejoCnt ? viejoCnt.log.length : 0, inv: !!viejo});
+      await guardarLista(l);
+      for (const k of CLAVES_TOMA) { const v = await DB.get("raw:" + k); if (v != null) await DB.set("raw:" + id + ":" + k, v); }
+      await DB.del(CLAVES_TOMA.map(k => "raw:" + k));
+    }
+  } catch (e) { toast("Almacenamiento no disponible: " + e.message); }
+  renderProceso(); renderScan();
+  mostrarLock();
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  document.querySelectorAll(".verApp").forEach(e => e.textContent = VERSION);
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    navigator.serviceWorker.register("sw.js").then(r => r.update()).catch(() => {});
+    // Cuando llega una versión nueva, se recarga una sola vez para usarla
+    let recargado = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (recargado || !navigator.serviceWorker.controller) return; recargado = true; saveCount(true); setTimeout(() => location.reload(), 300); });
+  }
+})();
+</script>
+</body>
+</html>

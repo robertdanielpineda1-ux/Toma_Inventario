@@ -1,0 +1,17 @@
+{
+  "name": "toma-inventario-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API central de Toma de Inventario: usuarios, permisos, tomas y sincronización de conteos",
+  "type": "module",
+  "main": "server.js",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js"
+  },
+  "dependencies": {
+    "compression": "1.8.1",
+    "express": "4.21.2"
+  }
+}
