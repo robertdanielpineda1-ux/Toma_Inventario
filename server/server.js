@@ -46,7 +46,22 @@ CREATE TABLE IF NOT EXISTS conteos (
   data TEXT, lect INTEGER, prod INTEGER, unidades REAL, act INTEGER,
   PRIMARY KEY (toma, u, device));
 CREATE TABLE IF NOT EXISTS auditoria (id INTEGER PRIMARY KEY AUTOINCREMENT, t INTEGER, u TEXT, accion TEXT, detalle TEXT);
+CREATE TABLE IF NOT EXISTS sedes (nombre TEXT PRIMARY KEY, claves TEXT, activa INTEGER NOT NULL DEFAULT 1, orden INTEGER, creado INTEGER);
 `);
+// Catálogo inicial de sedes (claves = palabras que identifican la sede en los reportes de Plade)
+const SEDES_INICIALES = [
+  ["Consumed · San Carlos", ["consumed"]], ["Boulevar Cantón · San Carlos", ["boulevar", "canton"]],
+  ["Farmatown · Tinaco", ["farmatown"]], ["Farmatown 2 · Tinaco", ["farmatown", "2"]],
+  ["Premium Guacara · Guacara", ["premium", "guacara"]], ["Premium Campeón · Guacara", ["premium", "campeon"]],
+  ["Premium Los Guayos · Los Guayos", ["premium", "guayos"]],
+  ["Los Llanos 2021 · Tinaquillo", ["llanos"]], ["Los Llanos 2021 (sucursal) · Tinaquillo", ["llanos"]],
+  ["Panacea 2021 · Puerto Cabello", ["panacea"]], ["Panacea · San Carlos", ["panacea"]],
+  ["Panacea Flor Amarillo · Valencia", ["panacea", "flor"]], ["Mía 2025 · Valencia", ["mia"]],
+  ["La Tuya · Acarigua", ["tuya"]], ["Dr. José Gregorio Hernández · San Carlos", ["gregorio"]]];
+if (!db.prepare("SELECT COUNT(*) n FROM sedes").get().n) {
+  const ins = db.prepare("INSERT OR IGNORE INTO sedes (nombre, claves, orden, creado) VALUES (?, ?, ?, ?)");
+  SEDES_INICIALES.forEach(([n, c], i) => ins.run(n, JSON.stringify(c), i, Date.now()));
+}
 
 const J = s => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
 const now = () => Date.now();
@@ -235,6 +250,35 @@ function tomaPublica(req, t) {
     cortes_ver: puedeCortes(req, t) ? t.cortes_ver : null, n_cortes: cortes.length,
     conteo: { usuarios: c.usuarios, equipos: c.equipos, lect: c.lect } };
 }
+/* ---------- Sedes (catálogo central) ---------- */
+const palabrasSede = t => String(t || "").split("·")[0].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ")
+  .split(/\s+/).filter(w => w && !["farmacia", "farmacias", "fcia", "c", "a", "ca", "de", "la", "los", "el", "dr"].includes(w));
+const sedePublica = s => ({ nombre: s.nombre, claves: J(s.claves) || palabrasSede(s.nombre), activa: !!s.activa });
+// Cada usuario recibe solo las sedes a las que tiene acceso (Administrador y Auditor: todas)
+api.get("/sedes", auth, (req, res) => {
+  const lim = sedesDe(req.user), todas = db.prepare("SELECT * FROM sedes ORDER BY orden, nombre").all();
+  const enUso = new Set(db.prepare("SELECT DISTINCT sede FROM tomas").all().map(r => r.sede));
+  res.json({ sedes: todas.filter(s => (!lim || lim.includes(s.nombre)) && (s.activa || req.query.todas)).map(s => ({ ...sedePublica(s), enUso: enUso.has(s.nombre) })) });
+});
+api.post("/sedes", auth, need("usuarios"), (req, res) => {
+  const nombre = String(req.body?.nombre || "").trim().replace(/\s*·\s*/g, " · ");
+  if (nombre.length < 3) return res.status(400).json({ error: "Escribe el nombre de la sede (ej. Farmacia X · Ciudad)" });
+  const claves = Array.isArray(req.body?.claves) && req.body.claves.length ? req.body.claves.map(String) : palabrasSede(nombre);
+  const prev = db.prepare("SELECT * FROM sedes WHERE nombre = ?").get(nombre);
+  if (prev) db.prepare("UPDATE sedes SET activa = 1, claves = ? WHERE nombre = ?").run(JSON.stringify(claves), nombre);
+  else db.prepare("INSERT INTO sedes (nombre, claves, orden, creado) VALUES (?, ?, (SELECT COALESCE(MAX(orden), 0) + 1 FROM sedes), ?)").run(nombre, JSON.stringify(claves), now());
+  audit(req.user.u, prev ? "reactivó sede" : "creó sede", nombre);
+  res.json({ sede: sedePublica(db.prepare("SELECT * FROM sedes WHERE nombre = ?").get(nombre)) });
+});
+api.delete("/sedes/:nombre", auth, need("usuarios"), (req, res) => {
+  const s = db.prepare("SELECT * FROM sedes WHERE nombre = ?").get(req.params.nombre); if (!s) return res.status(404).json({ error: "No existe" });
+  // Si ya tiene tomas o usuarios, solo se desactiva (no se pierde el historial)
+  const usada = db.prepare("SELECT 1 FROM tomas WHERE sede = ? LIMIT 1").get(s.nombre) || db.prepare("SELECT * FROM users").all().some(u => (J(u.sedes) || []).includes(s.nombre));
+  if (usada) db.prepare("UPDATE sedes SET activa = 0 WHERE nombre = ?").run(s.nombre); else db.prepare("DELETE FROM sedes WHERE nombre = ?").run(s.nombre);
+  audit(req.user.u, usada ? "desactivó sede" : "eliminó sede", s.nombre);
+  res.json({ ok: true, desactivada: !!usada });
+});
+
 api.get("/tomas", auth, (req, res) => {
   const l = db.prepare("SELECT * FROM tomas ORDER BY fecha DESC, sede").all().filter(t => accesible(req, t));
   res.json({ tomas: l.map(t => tomaPublica(req, t)), user: usuarioPublico(req.user) });
@@ -246,6 +290,10 @@ api.post("/tomas", auth, need("cargar"), (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: "Indica la fecha (AAAA-MM-DD)" });
   const id = String(b.id || slug(sede) + "_" + fecha);
   const s = sedesDe(req.user); if (s && !s.includes(sede)) return res.status(403).json({ error: "No tienes acceso a esta sede" });
+  if (!db.prepare("SELECT 1 FROM sedes WHERE nombre = ?").get(sede)) {   // sede nueva: se agrega al catálogo
+    if (!req.perm.usuarios) return res.status(400).json({ error: "Esa sede no está en el catálogo. Pide al administrador que la agregue." });
+    db.prepare("INSERT INTO sedes (nombre, claves, orden, creado) VALUES (?, ?, (SELECT COALESCE(MAX(orden), 0) + 1 FROM sedes), ?)").run(sede, JSON.stringify(Array.isArray(b.claves) && b.claves.length ? b.claves : palabrasSede(sede)), now());
+  }
   if (!db.prepare("SELECT 1 FROM tomas WHERE id = ?").get(id)) {
     db.prepare("INSERT INTO tomas (id, sede, fecha, claves, meta, meta_ver, cortes, creado, creado_por, act) VALUES (?, ?, ?, ?, '{}', ?, '[]', ?, ?, ?)")
       .run(id, sede, fecha, JSON.stringify(Array.isArray(b.claves) ? b.claves : []), now(), now(), req.user.u, now());

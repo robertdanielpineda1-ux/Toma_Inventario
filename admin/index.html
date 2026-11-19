@@ -51,6 +51,9 @@ dialog .bd{padding:14px 16px;max-height:70vh;overflow:auto}
 dialog .ft{padding:12px 16px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--br)}
 dialog input:not([type=checkbox]),dialog select{width:100%}
 .perms input[type=checkbox]{width:auto;flex:0 0 auto}
+.sedesGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 12px;max-height:240px;overflow:auto;border:1px solid var(--br);border-radius:8px;padding:6px 10px}
+.sedesGrid label{margin:4px 0}
+select#nSede{width:100%}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(120px);background:#1d2731;color:#fff;padding:11px 16px;border-radius:10px;font-size:13.5px;transition:transform .25s;z-index:99;max-width:92vw}
 #toast.show{transform:translateX(-50%) translateY(0)}
 .back{cursor:pointer;color:var(--pri);font-weight:600;font-size:13px;margin-bottom:8px;display:inline-block}
@@ -69,10 +72,11 @@ dialog input:not([type=checkbox]),dialog select{width:100%}
 <div id="app" hidden>
 <header>
   <b>📦 Panel de Inventario</b>
-  <nav><button data-v="tomas" class="on">Tomas</button><button data-v="usuarios">Usuarios</button><button data-v="auditoria">Actividad</button></nav>
+  <nav><button data-v="tomas" class="on">Tomas</button><button data-v="usuarios">Usuarios</button><button data-v="sedes">Sedes</button><button data-v="auditoria">Actividad</button></nav>
   <span class="sp"></span>
   <a href="../" target="_blank" class="btn sec sm" style="text-decoration:none">📱 Abrir la app</a>
   <span class="who" id="who"></span>
+  <button class="btn sec sm" id="miClave">🔑 Mi clave</button>
   <button class="btn sec sm" id="salir">Salir</button>
 </header>
 <main>
@@ -81,7 +85,7 @@ dialog input:not([type=checkbox]),dialog select{width:100%}
     <div class="card" id="cardNueva">
       <h2>Nueva toma</h2>
       <div class="row">
-        <div style="flex:2;min-width:220px"><label class="f">Sede</label><input id="nSede" list="sedes" placeholder="Escribe o elige la sede" style="width:100%"></div>
+        <div style="flex:2;min-width:220px"><label class="f">Sede</label><select id="nSede"><option value="">Cargando sedes…</option></select></div>
         <div><label class="f">Fecha del conteo</label><input id="nFecha" type="date"></div>
         <button class="btn" id="nCrear">➕ Crear toma</button>
       </div>
@@ -132,6 +136,16 @@ dialog input:not([type=checkbox]),dialog select{width:100%}
   </section>
 
   <!-- AUDITORÍA -->
+  <!-- SEDES -->
+  <section id="v-sedes" hidden>
+    <div class="card">
+      <h2>Sedes</h2>
+      <div class="mut" style="margin-bottom:10px">Catálogo central de sedes. Aparecen al crear tomas y al asignar sedes a los usuarios, en el panel y en los teléfonos.</div>
+      <div class="row"><div style="flex:1;min-width:240px"><label class="f">Nueva sede (nombre · ciudad)</label><input id="sNueva" placeholder="Ej.: Farmacia Nueva · Valencia" style="width:100%"></div><button class="btn" id="sAgregar">➕ Agregar sede</button></div>
+      <div class="tw" style="margin-top:12px;max-height:none"><table><thead><tr><th>Sede</th><th class="hide-m">Palabras para reconocer el reporte de Plade</th><th>Uso</th><th></th></tr></thead><tbody id="tSedes"></tbody></table></div>
+    </div>
+  </section>
+
   <section id="v-auditoria" hidden>
     <div class="card">
       <h2>Actividad reciente</h2>
@@ -150,15 +164,26 @@ dialog input:not([type=checkbox]),dialog select{width:100%}
     <label class="f">Perfil</label><select id="uRol"><option value="inv">Inventarista (solo cuenta)</option><option value="gerente">Gerente de sede</option><option value="auditor">Auditor general (ve todo, todas las sedes)</option><option value="admin">Administrador</option></select>
     <label class="f">Sedes a las que tiene acceso *</label>
     <div id="uSedesTodas" class="mut" hidden>✔ Este perfil ve <b>todas las sedes</b>.</div>
-    <div id="uSedesBox"><div class="perms" id="uSedes" style="columns:2"></div>
-      <div class="row" style="margin-top:6px"><input id="uSedeOtra" list="sedes" placeholder="Agregar otra sede" style="flex:1"><button class="btn sec sm" id="uSedeAdd" type="button">➕</button></div></div>
+    <div id="uSedesBox"><div class="row" style="margin-bottom:6px;gap:6px"><button class="btn sec sm" type="button" id="uSedesAll">Marcar todas</button><button class="btn sec sm" type="button" id="uSedesNone">Ninguna</button></div>
+      <div class="perms sedesGrid" id="uSedes"></div>
+      <div class="mut" style="margin-top:4px">¿Falta una sede? Agrégala en la pestaña <b>Sedes</b>.</div></div>
     <label class="f">Permisos</label><div class="perms" id="uPerms"></div>
     <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="uActivo" style="width:auto"> Usuario activo</label>
   </div>
   <div class="ft"><button class="btn sec" id="uCancel">Cancelar</button><button class="btn" id="uSave">Guardar</button></div>
 </dialog>
 
-<datalist id="sedes"></datalist>
+<dialog id="dlgClave">
+  <div class="hd" id="cTit">Cambiar clave</div>
+  <div class="bd">
+    <div class="mut" id="cInfo" style="margin-bottom:6px"></div>
+    <div id="cActualBox"><label class="f">Clave actual</label><input id="cActual" type="password" autocomplete="current-password"></div>
+    <label class="f">Nueva clave (la que quieras, mínimo 4 caracteres)</label><input id="cNueva" type="password" autocomplete="new-password">
+    <label class="f">Repite la nueva clave</label><input id="cNueva2" type="password" autocomplete="new-password">
+    <label class="mut" style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="cVer" style="width:auto"> Mostrar claves</label>
+  </div>
+  <div class="ft"><button class="btn sec" id="cCancel">Cancelar</button><button class="btn" id="cSave">Guardar clave</button></div>
+</dialog>
 <div id="toast"></div>
 
 <script>
@@ -213,6 +238,8 @@ function iniciar(u) {
   $("#who").textContent = `${u.nombre} · ${PERFIL_TXT[u.rol] || u.rol}`;
   document.querySelector('nav button[data-v="usuarios"]').hidden = !puede("usuarios");
   document.querySelector('nav button[data-v="auditoria"]').hidden = !puede("usuarios");
+  document.querySelector('nav button[data-v="sedes"]').hidden = !puede("usuarios");
+  cargarSedes();
   $("#cardNueva").hidden = !puede("cargar");
   ver("tomas");
 }
@@ -227,6 +254,7 @@ function ver(v) {
   if (v === "tomas") cargarTomas();
   if (v === "usuarios") cargarUsuarios();
   if (v === "auditoria") cargarAuditoria();
+  if (v === "sedes") pintarCatalogo();
   if (v === "toma") { cargarToma(); autoT = setInterval(() => { if ($("#auto").checked && !document.hidden) cargarToma(true); }, 15000); }
   window.scrollTo(0, 0);
 }
@@ -234,11 +262,60 @@ function ver(v) {
 /* ---------- Tomas ---------- */
 let TOMAS = [];
 $("#nFecha").value = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
-$("#sedes").innerHTML = SEDES.map(s => `<option value="${esc(s)}">`).join("");
+// Catálogo de sedes (del servidor)
+let SEDES_SRV = [];
+async function cargarSedes() {
+  try { SEDES_SRV = (await api("sedes")).sedes; } catch (e) { toast(e.message); }
+  const prev = $("#nSede").value;
+  $("#nSede").innerHTML = `<option value="">— Elige la sede —</option>` + SEDES_SRV.map(s => `<option value="${esc(s.nombre)}">${esc(s.nombre)}</option>`).join("");
+  if (SEDES_SRV.some(s => s.nombre === prev)) $("#nSede").value = prev;
+}
+async function pintarCatalogo() {
+  let l; try { l = (await api("sedes?todas=1")).sedes; } catch (e) { return toast(e.message); }
+  const usu = new Map(); for (const u of USUARIOS.length ? USUARIOS : (puede("usuarios") ? (await api("users")).users : [])) for (const s of u.sedes || []) usu.set(s, (usu.get(s) || 0) + 1);
+  $("#tSedes").innerHTML = l.map(s => `<tr><td><b>${esc(s.nombre)}</b>${s.activa ? "" : ' <span class="tag bad">Inactiva</span>'}</td><td class="hide-m mut">${esc(s.claves.join(", "))}</td>
+    <td class="mut">${s.enUso ? "Tiene tomas" : "Sin tomas"} · ${usu.get(s.nombre) || 0} usuario(s)</td>
+    <td>${s.activa ? `<button class="btn danger sm" data-q="${esc(s.nombre)}">Quitar</button>` : `<button class="btn sec sm" data-r="${esc(s.nombre)}">Reactivar</button>`}</td></tr>`).join("");
+  $("#tSedes").querySelectorAll("button[data-q]").forEach(b => b.onclick = async () => {
+    if (!confirm(`¿Quitar la sede "${b.dataset.q}"? Si ya tiene tomas o usuarios, solo se desactiva y se conserva su historial.`)) return;
+    try { const r = await api("sedes/" + encodeURIComponent(b.dataset.q), {method: "DELETE"}); toast(r.desactivada ? "Sede desactivada" : "Sede eliminada"); pintarCatalogo(); cargarSedes(); } catch (e) { toast(e.message); } });
+  $("#tSedes").querySelectorAll("button[data-r]").forEach(b => b.onclick = async () => {
+    try { await api("sedes", {method: "POST", body: {nombre: b.dataset.r}}); toast("Sede reactivada"); pintarCatalogo(); cargarSedes(); } catch (e) { toast(e.message); } });
+}
+$("#sAgregar").onclick = async () => {
+  const nombre = $("#sNueva").value.trim(); if (!nombre) return toast("Escribe el nombre de la sede");
+  try { await api("sedes", {method: "POST", body: {nombre}}); $("#sNueva").value = ""; toast("Sede agregada"); pintarCatalogo(); cargarSedes(); } catch (e) { toast(e.message); }
+};
+$("#sNueva").onkeydown = e => { if (e.key === "Enter") $("#sAgregar").click(); };
+
+// Cambio de clave: la propia (pide la actual) o la de otro usuario (solo administradores)
+let CLAVE_DE = null;
+function abrirClave(u) {
+  CLAVE_DE = u || null;
+  $("#cTit").textContent = u ? `Cambiar clave · ${u.nombre}` : "Cambiar mi clave";
+  $("#cInfo").textContent = u ? `Asigna la clave que quieras a ${u.nombre} (${u.u}). Se cerrará su sesión en los teléfonos y deberá entrar con la nueva.` : "Escribe tu clave actual y la nueva.";
+  $("#cActualBox").hidden = !!u; ["#cActual", "#cNueva", "#cNueva2"].forEach(id => $(id).value = ""); $("#cVer").checked = false; $("#cVer").onchange();
+  $("#dlgClave").showModal(); setTimeout(() => (u ? $("#cNueva") : $("#cActual")).focus(), 50);
+}
+$("#cVer").onchange = () => ["#cActual", "#cNueva", "#cNueva2"].forEach(id => $(id).type = $("#cVer").checked ? "text" : "password");
+$("#miClave").onclick = () => abrirClave(null);
+$("#cCancel").onclick = () => $("#dlgClave").close();
+$("#cSave").onclick = async () => {
+  const n = $("#cNueva").value;
+  if (n.length < 4) return toast("La clave debe tener al menos 4 caracteres");
+  if (n !== $("#cNueva2").value) return toast("Las claves no coinciden");
+  try {
+    if (CLAVE_DE) { await api("users/" + encodeURIComponent(CLAVE_DE.u), {method: "PUT", body: {pw: n}}); toast(`Clave de ${CLAVE_DE.nombre} cambiada`); }
+    else { const r = await api("me/password", {method: "POST", body: {actual: $("#cActual").value, nueva: n}}); TOKEN = r.token; localStorage.setItem("ti_admin_token", TOKEN); toast("Tu clave fue cambiada"); }
+    $("#dlgClave").close();
+  } catch (e) { toast(e.message); }
+};
+["#cActual", "#cNueva", "#cNueva2"].forEach(id => $(id).onkeydown = e => { if (e.key === "Enter") $("#cSave").click(); });
 $("#recargar").onclick = () => cargarTomas();
 $("#nCrear").onclick = async () => {
-  const sede = $("#nSede").value.trim(), fecha = $("#nFecha").value;
-  if (!sede) return toast("Indica la sede");
+  const sede = $("#nSede").value, fecha = $("#nFecha").value;
+  if (!sede) return toast("Elige la sede");
+  if (!fecha) return toast("Indica la fecha del conteo");
   try { const t = await api("tomas", {method: "POST", body: {sede, fecha}}); toast("Toma creada: ya aparece en los teléfonos"); $("#nSede").value = ""; await cargarTomas(); abrir(t.id); }
   catch (e) { toast(e.message); }
 };
@@ -367,8 +444,9 @@ async function cargarUsuarios() {
   $("#tUsr").innerHTML = USUARIOS.map(u => `<tr><td><b>${esc(u.nombre)}</b>${u.u === ME.u ? ' <span class="tag">tú</span>' : ""}</td><td>${esc(u.u)}</td>
     <td>${PERFIL_TXT[u.rol] || u.rol}${u.permPropio ? ' <span class="mut">(personalizado)</span>' : ""}</td><td class="hide-m mut">${TODAS_SEDES.includes(u.rol) ? "Todas" : u.sedes && u.sedes.length ? esc(u.sedes.map(s => s.split("·")[0].trim()).join(", ")) : '<span class="tag bad">Sin sede asignada</span>'}</td>
     <td class="hide-m">${hace(u.ultimo)}</td><td>${u.activo ? '<span class="tag ok">Activo</span>' : '<span class="tag bad">Inactivo</span>'}</td>
-    <td style="white-space:nowrap"><button class="btn sec sm" data-e="${esc(u.u)}">✎ Editar</button> ${u.u === ME.u ? "" : `<button class="btn danger sm" data-d="${esc(u.u)}">🗑</button>`}</td></tr>`).join("");
+    <td style="white-space:nowrap"><button class="btn sec sm" data-e="${esc(u.u)}">✎ Editar</button> <button class="btn sec sm" data-k="${esc(u.u)}" title="Cambiar clave">🔑 Clave</button> ${u.u === ME.u ? "" : `<button class="btn danger sm" data-d="${esc(u.u)}">🗑</button>`}</td></tr>`).join("");
   $("#tUsr").querySelectorAll("button[data-e]").forEach(b => b.onclick = () => editar(USUARIOS.find(u => u.u === b.dataset.e)));
+  $("#tUsr").querySelectorAll("button[data-k]").forEach(b => b.onclick = () => { const u = USUARIOS.find(x => x.u === b.dataset.k); abrirClave(u.u === ME.u ? null : u); });
   $("#tUsr").querySelectorAll("button[data-d]").forEach(b => b.onclick = async () => {
     const u = USUARIOS.find(x => x.u === b.dataset.d);
     if (!confirm(`¿Eliminar el usuario ${u.nombre} (${u.u})? Sus conteos ya subidos se conservan. Si solo quieres impedirle entrar, mejor márcalo como inactivo.`)) return;
@@ -376,13 +454,12 @@ async function cargarUsuarios() {
 }
 function pintarPerms(p) { $("#uPerms").innerHTML = Object.keys(PERM_TXT).map(k => `<label><input type="checkbox" data-p="${k}" ${p[k] ? "checked" : ""}> ${PERM_TXT[k]}</label>`).join(""); }
 function pintarSedes(sel) {
-  const todas = [...new Set([...SEDES, ...TOMAS.map(t => t.sede), ...(sel || [])])];
+  const todas = [...new Set([...SEDES_SRV.map(s => s.nombre), ...(sel || [])])];
   $("#uSedes").innerHTML = todas.map(s => `<label><input type="checkbox" data-s="${esc(s)}" ${sel && sel.includes(s) ? "checked" : ""}> ${esc(s)}</label>`).join("");
   modoSedes();
 }
 const sedesMarcadas = () => [...$("#uSedes").querySelectorAll("input:checked")].map(i => i.dataset.s);
 function modoSedes() { const t = TODAS_SEDES.includes($("#uRol").value); $("#uSedesTodas").hidden = !t; $("#uSedesBox").hidden = t; }
-$("#uSedeAdd").onclick = () => { const s = $("#uSedeOtra").value.trim(); if (!s) return; pintarSedes([...sedesMarcadas(), s]); $("#uSedeOtra").value = ""; };
 function editar(u) {
   EDIT = u || null;
   $("#uTit").textContent = u ? `Editar · ${u.nombre}` : "Nuevo usuario";
@@ -393,7 +470,9 @@ function editar(u) {
   $("#dlgU").showModal(); setTimeout(() => (u ? $("#uPw") : $("#uNombre")).focus(), 50);
 }
 $("#uRol").onchange = () => { pintarPerms(PERFILES[$("#uRol").value].p); modoSedes(); };
-$("#uNuevo").onclick = async () => { if (!TOMAS.length) await cargarTomas().catch(() => {}); if (!PERFILES) await cargarUsuarios(); editar(null); };
+$("#uNuevo").onclick = async () => { if (!SEDES_SRV.length) await cargarSedes(); if (!PERFILES) await cargarUsuarios(); editar(null); };
+$("#uSedesAll").onclick = () => $("#uSedes").querySelectorAll("input").forEach(i => i.checked = true);
+$("#uSedesNone").onclick = () => $("#uSedes").querySelectorAll("input").forEach(i => i.checked = false);
 $("#uCancel").onclick = () => $("#dlgU").close();
 $("#uSave").onclick = async () => {
   const perm = {}; $("#uPerms").querySelectorAll("input").forEach(i => perm[i.dataset.p] = i.checked ? 1 : 0);

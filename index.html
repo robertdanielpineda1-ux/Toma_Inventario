@@ -474,7 +474,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 <script src="lib/xlsx.bundle.js" defer></script>
 <script>
 "use strict";
-const VERSION = "15.0";
+const VERSION = "15.1";
 // Modo servidor: la app se sirve desde el servidor central (config.js define TI_API). Sin él funciona como antes, solo local.
 try { if (typeof window.TI_API === "string") localStorage.setItem("TI_API", window.TI_API); else window.TI_API = localStorage.getItem("TI_API") || undefined; } catch (e) {}
 const SRV = typeof window.TI_API === "string" && location.protocol.startsWith("http");
@@ -753,7 +753,7 @@ function renderProceso() {
   const u = S.inv, st = $("#invStatus");
   st.classList.toggle("on", !!u);
   st.innerHTML = u ? `✅ <b>${esc(u.archivo)}</b><br>Generado: <b>${fechaHora(u.t)}</b>${u.tReporte ? "" : " (hora de carga; el archivo no trae hora)"}<br>
-      ${u.n.toLocaleString("es-VE")} productos${u.ciego ? " · conteo a ciegas (sin existencias del sistema)" : ` · ${fmt(u.unidades)} unidades`}${u.dup ? ` · ${u.dup} códigos repetidos sumados` : ""}${SRV ? "<br>☁ Recibido del servidor central" : ""}`
+      ${u.n.toLocaleString("es-VE")} productos${u.ciego ? " · conteo a ciegas (sin existencias del sistema)" : ` · ${fmt(u.unidades)} unidades`}${u.dup ? ` · ${u.dup} códigos repetidos sumados` : ""}${SRV ? "<br>☁ En el servidor central: todos los teléfonos de la toma lo reciben" : ""}`
     : SRV && !puede("cargar") ? "Aún no cargado. Se descarga solo cuando el administrador lo suba (necesitas conexión)." : "No cargado";
   $("#btnInv").textContent = u ? "📂 Reemplazar Reporte de Inventario" : "📂 Cargar Reporte de Inventario";
   $("#btnInv").hidden = SRV && !puede("cargar");
@@ -1425,6 +1425,7 @@ function renderEstado() {
   $("#btnCerrarToma").className = "btn block " + (c ? "sec" : "danger");
   if (!c) $("#btnCerrarToma").style.cssText = "background:var(--bad);color:#fff"; else $("#btnCerrarToma").style.cssText = "";
   $("#btnCorte").disabled = !!c || !puede("cargar");
+  $("#btnCorte").closest(".card").hidden = SRV && !puede("cargar") && !verDif();   // el inventarista no carga reportes
   const vd = verDif();
   ["#cardRes", "#cardAj", "#cardTbl", "#pendWarn"].forEach(id => { if (!vd) $(id).hidden = true; });
   if (vd) { $("#cardRes").hidden = false; $("#cardAj").hidden = !puede("exportar"); $("#cardTbl").hidden = false; }
@@ -2057,6 +2058,8 @@ function coincideSede(empresa, toma) {
   const e = new Set(palabras(empresa)), cl = toma.claves && toma.claves.length ? toma.claves : palabras(toma.sede.split("·")[0]);
   return cl.every(w => e.has(w));
 }
+// Sedes para elegir: en modo servidor, el catálogo central (solo las sedes del usuario); si no, la lista fija
+async function listaSedes() { if (!SRV) return SEDES; const l = await DB.get("g:sedes"); return Array.isArray(l) ? l.map(x => [x.nombre, x.claves]) : SEDES; }
 async function listaTomas() { return (await DB.get("g:tomas")) || []; }
 async function guardarLista(l) { await DB.set("g:tomas", l); }
 let tocarTimer = null;
@@ -2089,6 +2092,7 @@ async function abrirToma(t) {
 // Modo servidor: trae del servidor las tomas que este usuario puede trabajar y las guarda en el teléfono
 async function traerTomasServidor() {
   const r = await api("tomas"); aplicarUsuarioServidor(r.user);
+  try { await DB.set("g:sedes", (await api("sedes")).sedes); } catch (e) {}
   const l = await listaTomas(), ids = new Set(r.tomas.map(t => t.id));
   for (const t of r.tomas) {
     let x = l.find(y => y.id === t.id);
@@ -2108,11 +2112,12 @@ async function mostrarSelector() {
       .finally(() => { mostrarSelector.trayendo = false; });
   }
   const sel = $("#tSede");
-  sel.innerHTML = SEDES.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join("") + `<option value="otra">Otra…</option>`;
+  const LS = await listaSedes();
+  sel.innerHTML = (LS.length ? "" : `<option value="">Sin sedes asignadas</option>`) + LS.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join("") + (SRV ? "" : `<option value="otra">Otra…</option>`);
   let ult = null; try { ult = localStorage.getItem("ultimaToma"); } catch (e) {}
   const l = (await listaTomas()).sort((a, b) => (b.act || 0) - (a.act || 0));
   const u = l.find(x => x.id === ult) || l[0];
-  if (u) { const i = SEDES.findIndex(s => s[0] === u.sede); sel.value = i >= 0 ? String(i) : "otra"; $("#tSedeOtra").value = i >= 0 ? "" : u.sede; }
+  if (u) { const i = LS.findIndex(s => s[0] === u.sede); sel.value = i >= 0 ? String(i) : SRV ? "0" : "otra"; $("#tSedeOtra").value = i >= 0 ? "" : u.sede; }
   $("#tSedeOtra").hidden = sel.value !== "otra";
   $("#tFecha").value = diaISO(Date.now());
   if (SRV) {
@@ -2136,12 +2141,14 @@ async function mostrarSelector() {
 $("#tSede").onchange = () => { $("#tSedeOtra").hidden = $("#tSede").value !== "otra"; if (!$("#tSedeOtra").hidden) $("#tSedeOtra").focus(); };
 $("#btnAbrirToma").onclick = async () => {
   const v = $("#tSede").value, f = $("#tFecha").value;
-  const sede = v === "otra" ? $("#tSedeOtra").value.trim() : SEDES[+v][0];
+  const LS = await listaSedes();
+  if (v === "" || (v !== "otra" && !LS[+v])) return toast("Elige la sede");
+  const sede = v === "otra" ? $("#tSedeOtra").value.trim() : LS[+v][0];
   if (!sede) return toast("Escribe el nombre de la sede");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return toast("Indica la fecha del conteo");
   const id = slug(sede) + "_" + f, l = await listaTomas();
   let t = l.find(x => x.id === id);
-  if (!t) { t = {id, sede, fecha: f, claves: v === "otra" ? palabras(sede) : SEDES[+v][1], creado: Date.now(), act: Date.now(), lect: 0}; l.push(t);
+  if (!t) { t = {id, sede, fecha: f, claves: v === "otra" ? palabras(sede) : LS[+v][1], creado: Date.now(), act: Date.now(), lect: 0}; l.push(t);
     if (SRV) { try { await api("tomas", {method: "POST", body: {id, sede, fecha: f, claves: t.claves}}); t.srv = true; }
                catch (e) { if (!e.red) return toast(e.message); t.pendCrear = true; toast("Sin conexión: la toma se creará en el servidor al volver la señal"); } }
     await guardarLista(l); }
