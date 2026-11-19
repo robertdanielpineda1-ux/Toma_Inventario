@@ -24,9 +24,16 @@ Datos: un archivo SQLite en el volumen `/data` (respáldalo).
 |---|---|---|---|---|---|
 | Inventarista | **Nunca** (el servidor ni se las envía) | No | Solo lo suyo | No | No |
 | Gerente | Al cerrar la toma | Al cerrar la toma | Sí | Sí | No |
+| Auditor general | Siempre | Siempre | Sí | No (solo lectura) | No |
 | Administrador | Siempre | Siempre | Sí | Sí | Sí |
 
-Cada permiso se puede ajustar por persona y se pueden limitar las sedes de cada usuario.
+Inventaristas y gerentes deben tener al menos una sede asignada y solo ven las tomas de esas sedes. El Auditor general y el Administrador ven todas las sedes. Cada permiso se puede ajustar por persona.
+
+## Despliegue actual
+
+- Dokploy en `hcm` → proyecto **Inventario** → aplicación **conteos** (servicio `conteos-3igpk0`), volumen `conteos-data` en `/data`.
+- Dominio `conteos.grupopanaceapremium.com` (HTTPS con el certificado Cloudflare Origin `*.grupopanaceapremium.com`). En Cloudflare: registro `conteos` (o `*`) tipo A → IP del servidor, **Proxied**, SSL/TLS en **Full (strict)**.
+- La clave inicial del admin está en Dokploy → conteos → Environment (`ADMIN_PASSWORD`).
 
 ## Publicar la imagen en GHCR
 
