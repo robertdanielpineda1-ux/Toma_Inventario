@@ -2167,6 +2167,7 @@ const PERMISOS = [
   ["equipo", "Ver y consolidar el conteo de todo el equipo (modo servidor)"]];
 const PERFILES_USR = {
   admin:   {nombre: "Administrador", p: {verStockAbierta: 1, verStockCerrada: 1, verDifAbierta: 1, verDifCerrada: 1, cargar: 1, exportar: 1, cerrar: 1, quitar: 1, usuarios: 1, equipo: 1}},
+  auditor: {nombre: "Auditor general", p: {verStockAbierta: 1, verStockCerrada: 1, verDifAbierta: 1, verDifCerrada: 1, cargar: 0, exportar: 1, cerrar: 0, quitar: 0, usuarios: 0, equipo: 1}},
   gerente: {nombre: "Gerente",       p: {verStockAbierta: 0, verStockCerrada: 1, verDifAbierta: 0, verDifCerrada: 1, cargar: 1, exportar: 1, cerrar: 0, quitar: 0, usuarios: 0, equipo: 1}},
   inv:     {nombre: "Inventarista",  p: {verStockAbierta: 0, verStockCerrada: 0, verDifAbierta: 0, verDifCerrada: 0, cargar: 1, exportar: 0, cerrar: 0, quitar: 0, usuarios: 0, equipo: 0}}};
 const permisosDe = u => {

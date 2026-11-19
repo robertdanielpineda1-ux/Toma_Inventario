@@ -126,7 +126,7 @@ dialog input:not([type=checkbox]),dialog select{width:100%}
   <section id="v-usuarios" hidden>
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Usuarios</h2><button class="btn" id="uNuevo">➕ Nuevo usuario</button></div>
-      <div class="mut" style="margin:6px 0 10px"><b>Inventarista</b>: solo cuenta y ve lo que él cuenta; nunca recibe la existencia del sistema. <b>Gerente</b>: ve resultados al cerrar la toma. <b>Administrador</b>: ve todo. Los permisos se pueden ajustar por persona y llegan a los teléfonos al sincronizar.</div>
+      <div class="mut" style="margin:6px 0 10px"><b>Inventarista</b>: solo cuenta y ve lo que él cuenta; nunca recibe la existencia del sistema. <b>Gerente</b>: ve resultados de su sede al cerrar la toma. <b>Auditor general</b>: ve todo en todas las sedes, sin modificar. <b>Administrador</b>: ve y administra todo. Inventaristas y gerentes solo ven las sedes que les asignes. Los permisos se pueden ajustar por persona y llegan a los teléfonos al sincronizar.</div>
       <div class="tw" style="max-height:none"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Perfil</th><th class="hide-m">Sedes</th><th class="hide-m">Último ingreso</th><th>Estado</th><th></th></tr></thead><tbody id="tUsr"></tbody></table></div>
     </div>
   </section>
@@ -147,9 +147,12 @@ dialog input:not([type=checkbox]),dialog select{width:100%}
     <label class="f">Nombre y apellido</label><input id="uNombre">
     <label class="f">Usuario (para entrar)</label><input id="uUser" autocapitalize="off" spellcheck="false">
     <label class="f" id="uPwLbl">Contraseña</label><input id="uPw" type="text" autocomplete="off" placeholder="Mínimo 4 caracteres">
-    <label class="f">Perfil</label><select id="uRol"><option value="inv">Inventarista (solo cuenta)</option><option value="gerente">Gerente</option><option value="admin">Administrador</option></select>
+    <label class="f">Perfil</label><select id="uRol"><option value="inv">Inventarista (solo cuenta)</option><option value="gerente">Gerente de sede</option><option value="auditor">Auditor general (ve todo, todas las sedes)</option><option value="admin">Administrador</option></select>
+    <label class="f">Sedes a las que tiene acceso *</label>
+    <div id="uSedesTodas" class="mut" hidden>✔ Este perfil ve <b>todas las sedes</b>.</div>
+    <div id="uSedesBox"><div class="perms" id="uSedes" style="columns:2"></div>
+      <div class="row" style="margin-top:6px"><input id="uSedeOtra" list="sedes" placeholder="Agregar otra sede" style="flex:1"><button class="btn sec sm" id="uSedeAdd" type="button">➕</button></div></div>
     <label class="f">Permisos</label><div class="perms" id="uPerms"></div>
-    <label class="f">Sedes a las que tiene acceso (ninguna marcada = todas)</label><div class="perms" id="uSedes" style="columns:2"></div>
     <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="uActivo" style="width:auto"> Usuario activo</label>
   </div>
   <div class="ft"><button class="btn sec" id="uCancel">Cancelar</button><button class="btn" id="uSave">Guardar</button></div>
@@ -176,7 +179,8 @@ const PERM_TXT = {verStockAbierta: "Ver la existencia del sistema con la toma AB
   verDifAbierta: "Ver diferencias y resultados con la toma ABIERTA", verDifCerrada: "Ver diferencias y resultados con la toma CERRADA",
   cargar: "Crear tomas y cargar Reporte de Inventario / Items Facturados", exportar: "Exportar y enviar reportes", cerrar: "Cerrar, reabrir y eliminar tomas",
   quitar: "Autorizar quitar productos del conteo", usuarios: "Administrar usuarios", equipo: "Ver el conteo de todo el equipo (panel y consolidado)"};
-const PERFIL_TXT = {admin: "Administrador", gerente: "Gerente", inv: "Inventarista"};
+const PERFIL_TXT = {admin: "Administrador", auditor: "Auditor general", gerente: "Gerente", inv: "Inventarista"};
+const TODAS_SEDES = ["admin", "auditor"];
 
 /* ---------- API ---------- */
 let TOKEN = localStorage.getItem("ti_admin_token") || "", ME = null, PERFILES = null;
@@ -361,7 +365,7 @@ let USUARIOS = [], EDIT = null;
 async function cargarUsuarios() {
   try { const r = await api("users"); USUARIOS = r.users; PERFILES = r.perfiles; } catch (e) { return toast(e.message); }
   $("#tUsr").innerHTML = USUARIOS.map(u => `<tr><td><b>${esc(u.nombre)}</b>${u.u === ME.u ? ' <span class="tag">tú</span>' : ""}</td><td>${esc(u.u)}</td>
-    <td>${PERFIL_TXT[u.rol] || u.rol}${u.permPropio ? ' <span class="mut">(personalizado)</span>' : ""}</td><td class="hide-m mut">${u.sedes ? esc(u.sedes.map(s => s.split("·")[0].trim()).join(", ")) : "Todas"}</td>
+    <td>${PERFIL_TXT[u.rol] || u.rol}${u.permPropio ? ' <span class="mut">(personalizado)</span>' : ""}</td><td class="hide-m mut">${TODAS_SEDES.includes(u.rol) ? "Todas" : u.sedes && u.sedes.length ? esc(u.sedes.map(s => s.split("·")[0].trim()).join(", ")) : '<span class="tag bad">Sin sede asignada</span>'}</td>
     <td class="hide-m">${hace(u.ultimo)}</td><td>${u.activo ? '<span class="tag ok">Activo</span>' : '<span class="tag bad">Inactivo</span>'}</td>
     <td style="white-space:nowrap"><button class="btn sec sm" data-e="${esc(u.u)}">✎ Editar</button> ${u.u === ME.u ? "" : `<button class="btn danger sm" data-d="${esc(u.u)}">🗑</button>`}</td></tr>`).join("");
   $("#tUsr").querySelectorAll("button[data-e]").forEach(b => b.onclick = () => editar(USUARIOS.find(u => u.u === b.dataset.e)));
@@ -374,7 +378,11 @@ function pintarPerms(p) { $("#uPerms").innerHTML = Object.keys(PERM_TXT).map(k =
 function pintarSedes(sel) {
   const todas = [...new Set([...SEDES, ...TOMAS.map(t => t.sede), ...(sel || [])])];
   $("#uSedes").innerHTML = todas.map(s => `<label><input type="checkbox" data-s="${esc(s)}" ${sel && sel.includes(s) ? "checked" : ""}> ${esc(s)}</label>`).join("");
+  modoSedes();
 }
+const sedesMarcadas = () => [...$("#uSedes").querySelectorAll("input:checked")].map(i => i.dataset.s);
+function modoSedes() { const t = TODAS_SEDES.includes($("#uRol").value); $("#uSedesTodas").hidden = !t; $("#uSedesBox").hidden = t; }
+$("#uSedeAdd").onclick = () => { const s = $("#uSedeOtra").value.trim(); if (!s) return; pintarSedes([...sedesMarcadas(), s]); $("#uSedeOtra").value = ""; };
 function editar(u) {
   EDIT = u || null;
   $("#uTit").textContent = u ? `Editar · ${u.nombre}` : "Nuevo usuario";
@@ -384,13 +392,14 @@ function editar(u) {
   $("#uActivo").checked = u ? u.activo : true;
   $("#dlgU").showModal(); setTimeout(() => (u ? $("#uPw") : $("#uNombre")).focus(), 50);
 }
-$("#uRol").onchange = () => pintarPerms(PERFILES[$("#uRol").value].p);
+$("#uRol").onchange = () => { pintarPerms(PERFILES[$("#uRol").value].p); modoSedes(); };
 $("#uNuevo").onclick = async () => { if (!TOMAS.length) await cargarTomas().catch(() => {}); if (!PERFILES) await cargarUsuarios(); editar(null); };
 $("#uCancel").onclick = () => $("#dlgU").close();
 $("#uSave").onclick = async () => {
   const perm = {}; $("#uPerms").querySelectorAll("input").forEach(i => perm[i.dataset.p] = i.checked ? 1 : 0);
   const base = PERFILES[$("#uRol").value].p, perso = Object.keys(perm).some(k => !!perm[k] !== !!base[k]);
-  const sedes = [...$("#uSedes").querySelectorAll("input:checked")].map(i => i.dataset.s);
+  const sedes = TODAS_SEDES.includes($("#uRol").value) ? null : sedesMarcadas();
+  if (sedes && !sedes.length) return toast("Marca al menos una sede para este usuario");
   const body = {nombre: $("#uNombre").value.trim(), rol: $("#uRol").value, perm: perso ? perm : null, sedes, activo: $("#uActivo").checked};
   if ($("#uPw").value) body.pw = $("#uPw").value;
   try {

@@ -61,6 +61,7 @@ function audit(u, accion, detalle) {
 const PERMISOS = ["verStockAbierta", "verStockCerrada", "verDifAbierta", "verDifCerrada", "cargar", "exportar", "cerrar", "quitar", "usuarios", "equipo"];
 const PERFILES = {
   admin:   { nombre: "Administrador", p: { verStockAbierta: 1, verStockCerrada: 1, verDifAbierta: 1, verDifCerrada: 1, cargar: 1, exportar: 1, cerrar: 1, quitar: 1, usuarios: 1, equipo: 1 } },
+  auditor: { nombre: "Auditor general", p: { verStockAbierta: 1, verStockCerrada: 1, verDifAbierta: 1, verDifCerrada: 1, cargar: 0, exportar: 1, cerrar: 0, quitar: 0, usuarios: 0, equipo: 1 } },
   gerente: { nombre: "Gerente",       p: { verStockAbierta: 0, verStockCerrada: 1, verDifAbierta: 0, verDifCerrada: 1, cargar: 1, exportar: 1, cerrar: 0, quitar: 0, usuarios: 0, equipo: 1 } },
   inv:     { nombre: "Inventarista",  p: { verStockAbierta: 0, verStockCerrada: 0, verDifAbierta: 0, verDifCerrada: 0, cargar: 0, exportar: 0, cerrar: 0, quitar: 0, usuarios: 0, equipo: 0 } },
 };
@@ -157,7 +158,14 @@ api.post("/autorizar", auth, (req, res) => {
 /* ---------- Usuarios (solo quien tenga el permiso "usuarios") ---------- */
 const adminsActivos = () => db.prepare("SELECT * FROM users WHERE activo = 1").all().filter(u => permisos(u).usuarios).length;
 function limpiarPerm(perm) { if (!perm || typeof perm !== "object") return null; const o = {}; for (const k of PERMISOS) if (k in perm) o[k] = perm[k] ? 1 : 0; return Object.keys(o).length ? o : null; }
-function limpiarSedes(s) { return Array.isArray(s) && s.length ? s.map(String).filter(Boolean) : null; }
+function limpiarSedes(s) { return Array.isArray(s) && s.length ? [...new Set(s.map(String).filter(Boolean))] : null; }
+// Administrador y Auditor general ven todas las sedes; los demás perfiles deben tener al menos una sede asignada
+const TODAS_SEDES = ["admin", "auditor"];
+function sedesPara(rol, sedes) {
+  if (TODAS_SEDES.includes(rol)) return { sedes: null };
+  const s = limpiarSedes(sedes);
+  return s ? { sedes: s } : { error: "Asigna al menos una sede a este usuario (solo el Administrador y el Auditor general ven todas)" };
+}
 api.get("/users", auth, need("usuarios"), (req, res) => res.json({ users: db.prepare("SELECT * FROM users ORDER BY nombre").all().map(usuarioPublico), perfiles: PERFILES, permisos: PERMISOS }));
 api.post("/users", auth, need("usuarios"), (req, res) => {
   const b = req.body || {}, u = normUser(b.u);
@@ -166,8 +174,9 @@ api.post("/users", auth, need("usuarios"), (req, res) => {
   if (!PERFILES[b.rol]) return res.status(400).json({ error: "Perfil no válido" });
   if (getUser(u)) return res.status(409).json({ error: "Ese usuario ya existe" });
   if (String(b.pw || "").length < PW_MIN) return res.status(400).json({ error: `La contraseña debe tener al menos ${PW_MIN} caracteres` });
+  const sd = sedesPara(b.rol, b.sedes); if (sd.error) return res.status(400).json({ error: sd.error });
   db.prepare("INSERT INTO users (u, nombre, rol, perm, sedes, pass, activo, creado) VALUES (?, ?, ?, ?, ?, ?, 1, ?)")
-    .run(u, b.nombre.trim(), b.rol, JSON.stringify(limpiarPerm(b.perm)), JSON.stringify(limpiarSedes(b.sedes)), hashPw(b.pw), now());
+    .run(u, b.nombre.trim(), b.rol, JSON.stringify(limpiarPerm(b.perm)), JSON.stringify(sd.sedes), hashPw(b.pw), now());
   audit(req.user.u, "creó usuario", u);
   res.json({ user: usuarioPublico(getUser(u)) });
 });
@@ -178,8 +187,9 @@ api.put("/users/:u", auth, need("usuarios"), (req, res) => {
     nombre: b.nombre != null ? String(b.nombre).trim() || prev.nombre : prev.nombre,
     rol: b.rol && PERFILES[b.rol] ? b.rol : prev.rol,
     perm: "perm" in b ? JSON.stringify(limpiarPerm(b.perm)) : prev.perm,
-    sedes: "sedes" in b ? JSON.stringify(limpiarSedes(b.sedes)) : prev.sedes,
     activo: "activo" in b ? (b.activo ? 1 : 0) : prev.activo };
+  const sd = sedesPara(nuevo.rol, "sedes" in b ? b.sedes : J(prev.sedes)); if (sd.error) return res.status(400).json({ error: sd.error });
+  nuevo.sedes = JSON.stringify(sd.sedes);
   let tv = prev.tv, pass = prev.pass;
   if (b.pw) { if (String(b.pw).length < PW_MIN) return res.status(400).json({ error: `La contraseña debe tener al menos ${PW_MIN} caracteres` }); pass = hashPw(b.pw); tv++; }
   if (!nuevo.activo && prev.activo) tv++;
@@ -204,7 +214,8 @@ api.get("/auditoria", auth, need("usuarios"), (req, res) => res.json({ items: db
 /* ---------- Tomas ---------- */
 const metaDe = t => J(t.meta) || {};
 const estaCerrada = t => !!metaDe(t).cerrada;
-const accesible = (req, t) => { const s = J(req.user.sedes); return !s || s.includes(t.sede); };
+const sedesDe = u => TODAS_SEDES.includes(u.rol) ? null : (J(u.sedes) || []);   // null = todas
+const accesible = (req, t) => { const s = sedesDe(req.user); return !s || s.includes(t.sede); };
 const puedeStock = (req, t) => !!(req.perm.verStockAbierta || (req.perm.verStockCerrada && estaCerrada(t)));
 const puedeDif = (req, t) => !!(req.perm.verDifAbierta || (req.perm.verDifCerrada && estaCerrada(t)));
 const puedeCortes = (req, t) => puedeDif(req, t) || puedeStock(req, t) || req.perm.cargar;
@@ -234,7 +245,7 @@ api.post("/tomas", auth, need("cargar"), (req, res) => {
   if (!sede) return res.status(400).json({ error: "Indica la sede" });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: "Indica la fecha (AAAA-MM-DD)" });
   const id = String(b.id || slug(sede) + "_" + fecha);
-  const s = J(req.user.sedes); if (s && !s.includes(sede)) return res.status(403).json({ error: "No tienes acceso a esta sede" });
+  const s = sedesDe(req.user); if (s && !s.includes(sede)) return res.status(403).json({ error: "No tienes acceso a esta sede" });
   if (!db.prepare("SELECT 1 FROM tomas WHERE id = ?").get(id)) {
     db.prepare("INSERT INTO tomas (id, sede, fecha, claves, meta, meta_ver, cortes, creado, creado_por, act) VALUES (?, ?, ?, ?, '{}', ?, '[]', ?, ?, ?)")
       .run(id, sede, fecha, JSON.stringify(Array.isArray(b.claves) ? b.claves : []), now(), now(), req.user.u, now());
