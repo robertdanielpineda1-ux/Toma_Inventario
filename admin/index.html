@@ -202,7 +202,7 @@ const SEDES = ["Consumed · San Carlos", "Boulevar Cantón · San Carlos", "Farm
   "Panacea Flor Amarillo · Valencia", "Mía 2025 · Valencia", "La Tuya · Acarigua", "Dr. José Gregorio Hernández · San Carlos"];
 const PERM_TXT = {verStockAbierta: "Ver la existencia del sistema con la toma ABIERTA", verStockCerrada: "Ver la existencia del sistema con la toma CERRADA",
   verDifAbierta: "Ver diferencias y resultados con la toma ABIERTA", verDifCerrada: "Ver diferencias y resultados con la toma CERRADA",
-  cargar: "Crear tomas y cargar Reporte de Inventario / Items Facturados", exportar: "Exportar y enviar reportes", cerrar: "Cerrar, reabrir y eliminar tomas",
+  cargar: "Crear tomas y cargar Reporte de Inventario / Movimiento de Inventario", exportar: "Exportar y enviar reportes", cerrar: "Cerrar, reabrir y eliminar tomas",
   quitar: "Autorizar quitar productos del conteo", usuarios: "Administrar usuarios", equipo: "Ver el conteo de todo el equipo (panel y consolidado)"};
 const PERFIL_TXT = {admin: "Administrador", auditor: "Auditor general", gerente: "Gerente", inv: "Inventarista"};
 const TODAS_SEDES = ["admin", "auditor"];
@@ -338,9 +338,12 @@ $("#volver").onclick = () => ver("tomas");
 let D = null, FILTRO = "CONT";
 const ESTADO = {OK: ["Cuadra", "ok"], FALTANTE: ["Faltante", "bad"], SOBRANTE: ["Sobrante", "sob"], NO_CONTADO: ["No contado", "warn"], SIN_EXISTENCIA: ["Sin existencia", ""], NOINV: ["No está en inventario", "sob"], CONTADO: ["Contado", ""]};
 function evaluar(x, d) {
-  // Igual que la app: si hay Items Facturados con existencia, el teórico es un rango entre la existencia final y la inicial
+  // Igual que la app. Con Movimiento de Inventario: teórico = saldo a la hora de la lectura (tmin–tmax si hubo movimientos mientras se contaba).
+  // Con Items Facturados (formato anterior): rango entre la existencia final y la inicial.
   if (!d.stock) { x.est = x.contado != null ? "CONTADO" : "NO_CONTADO"; x.dif = null; return x; }
-  const s0 = x.stock || 0, fin = x.final != null ? x.final : s0, lo = Math.min(s0, fin), hi = Math.max(s0, fin);
+  const s0 = x.stock || 0, fin = x.final != null ? x.final : s0;
+  let lo = Math.min(s0, fin), hi = Math.max(s0, fin);
+  if (x.tmin != null) { lo = x.tmin; hi = x.tmax; } else if (d.corte && d.corte.mov) { lo = hi = fin; }
   x.teo = lo === hi ? fmt(hi) : `${fmt(lo)}–${fmt(hi)}`;
   if (!x.enInv) { x.est = "NOINV"; x.dif = x.contado || 0; }
   else if (x.contado == null) { x.dif = -hi; x.est = hi > 0 ? "NO_CONTADO" : "SIN_EXISTENCIA"; }
@@ -358,7 +361,7 @@ async function cargarToma(silencioso) {
   $("#dTit").textContent = `${t.sede} · ${fISO(t.fecha)}`;
   $("#dSub").innerHTML = `${t.meta.cerrada ? `<span class="tag cerr">🔒 Cerrada ${fh(t.meta.cerrada.t)} por ${esc(t.meta.cerrada.usuario || "")}</span>` : `<span class="tag ok">Abierta</span>`}
     · Inventario: ${t.inv ? `<b>${esc(t.inv.archivo || "")}</b> (${fh(t.inv.t)})` : "<b>sin cargar</b>"}
-    · Items Facturados: ${D.corte ? `<b>${esc(D.corte.archivo || "")}</b> (${fh(D.corte.t)})` : "sin cargar"}`;
+    · Movimiento de Inventario: ${D.corte ? `<b>${esc(D.corte.archivo || "")}</b> (${fh(D.corte.t)}${D.corte.hasta ? ", movimientos hasta " + fh(D.corte.hasta) : ""})` : "sin cargar"}`;
   $("#dCerrar").hidden = !puede("cerrar"); $("#dBorrar").hidden = !puede("cerrar");
   $("#dCerrar").textContent = t.meta.cerrada ? "🔓 Reabrir" : "🔒 Cerrar toma";
   $("#dCerrar").className = "btn sm " + (t.meta.cerrada ? "sec" : "danger");
@@ -374,8 +377,9 @@ async function cargarToma(silencioso) {
   }
   $("#dKpis").innerHTML = k.map(([a, b, c]) => `<div class="kpi ${c || ""}"><b>${b}</b><span>${a}</span></div>`).join("");
   $("#dNota").innerHTML = !D.stock ? "Tu usuario no tiene permiso para ver la existencia del sistema en esta toma." :
-    D.corte && D.corte.conExist ? "Diferencias estimadas con el Items Facturados: el teórico va de la existencia final a la inicial (lo vendido durante la toma no cuenta como faltante). El cálculo detallado por hora de lectura, factores y ajustes para Plade está en la app → Cierre."
-    : "⚠ Diferencias <b>preliminares</b> contra el Reporte de Inventario inicial: aún no se cargó el Items Facturados, así que lo vendido durante la toma aparece como faltante.";
+    D.corte && D.corte.mov ? "Diferencias con el Movimiento de Inventario: cada producto se compara con su saldo a la <b>hora en que se contó</b> (inventario inicial + movimientos hasta esa hora), así una venta posterior al conteo no genera un sobrante ficticio. Factores y ajustes para Plade: app → Cierre."
+    : D.corte && D.corte.conExist ? "Diferencias estimadas con el Items Facturados (formato anterior): el teórico va de la existencia final a la inicial. Para el cálculo exacto por hora de lectura, carga el Movimiento de Inventario en la app."
+    : "⚠ Diferencias <b>preliminares</b> contra el Reporte de Inventario inicial: aún no se cargó el Movimiento de Inventario, así que lo vendido durante la toma aparece como faltante.";
   $("#dUsr").innerHTML = D.usuarios.length ? D.usuarios.sort((a, b) => b.act - a.act).map(u => `<tr><td><b>${esc(u.nombre)}</b> <span class="mut">${esc(u.u)}</span></td>
       <td class="hide-m mut">${esc(u.device.slice(0, 8))}</td><td class="n">${fmt(u.lect)}</td><td class="n">${fmt(u.prod)}</td><td class="n">${fmt(u.unidades)}</td><td>${hace(u.act)}</td>
       <td>${puede("cerrar") ? `<button class="btn danger sm" data-u="${esc(u.u)}" data-d="${esc(u.device)}" title="Descartar este conteo">✕</button>` : ""}</td></tr>`).join("")
@@ -416,7 +420,7 @@ $("#dCerrar").onclick = async () => {
   try { await api(`tomas/${encodeURIComponent(TOMA_ID)}/${c ? "reabrir" : "cerrar"}`, {method: "POST"}); toast(c ? "Toma reabierta" : "Toma cerrada"); cargarToma(); } catch (e) { toast(e.message); }
 };
 $("#dBorrar").onclick = async () => {
-  if (!confirm(`¿Eliminar del servidor la toma ${D.toma.sede} del ${fISO(D.toma.fecha)}? Se borran su inventario, Items Facturados y TODOS los conteos subidos. No se puede deshacer.`)) return;
+  if (!confirm(`¿Eliminar del servidor la toma ${D.toma.sede} del ${fISO(D.toma.fecha)}? Se borran su inventario, movimientos y TODOS los conteos subidos. No se puede deshacer.`)) return;
   if (prompt('Escribe ELIMINAR para confirmar') !== "ELIMINAR") return;
   try { await api("tomas/" + encodeURIComponent(TOMA_ID), {method: "DELETE"}); toast("Toma eliminada"); ver("tomas"); } catch (e) { toast(e.message); }
 };

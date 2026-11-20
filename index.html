@@ -227,7 +227,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
     <ol class="steps">
       <li>Antes de contar, carga el <b>Reporte de Inventario</b> de Plade.</li>
       <li>En <b>Escanear</b> cuenta los productos: por lectura (+1) o escribiendo la cantidad.</li>
-      <li>Al terminar de contar, exporta el <b>Items Facturados</b> del día y cárgalo en <b>Cierre</b>. La app toma la existencia actual de cada producto vendido y valida las diferencias.</li>
+      <li>Al terminar de contar, exporta de Plade el <b>Movimiento de Inventario</b> del día y cárgalo en <b>Cierre</b>. Cada producto se compara con su saldo en la <b>hora exacta</b> en que se contó.</li>
       <li>Exporta el resultado a Excel o compártelo por WhatsApp.</li>
     </ol>
   </div>
@@ -324,10 +324,10 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
   </div>
 
   <div class="card">
-    <h3>Validar con Items Facturados</h3>
-    <div class="mut">Al terminar de contar, exporta de Plade el <b>Items Facturados</b> del día y cárgalo aquí. Trae lo vendido y la existencia actual de cada producto, y con eso se descuenta lo vendido durante la toma.</div>
+    <h3>Validar con Movimiento de Inventario</h3>
+    <div class="mut">Al terminar de contar, exporta de Plade el <b>Movimiento de Inventario</b> del día y cárgalo aquí. Trae cada venta y movimiento con su <b>hora</b>: la app compara cada producto con su saldo en el momento exacto en que se pistoleó o se escribió la cantidad, así una venta posterior al conteo no genera un sobrante ficticio. Con eso se descuenta lo vendido durante la toma.</div>
     <ul class="list" id="cortesList" style="margin:8px 0"></ul>
-    <button class="btn block" id="btnCorte">📂 Cargar Items Facturados</button>
+    <button class="btn block" id="btnCorte">📂 Cargar Movimiento de Inventario</button>
     <div class="mut" style="margin-top:6px">Opcional: si cargas uno también a mitad de la toma, la app afina los productos que se vendieron mientras se contaban.</div>
   </div>
 
@@ -377,11 +377,11 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
       <tbody id="tbody"></tbody>
     </table>
     <div class="note">
-      <b>Cómo se calcula:</b> Vendido en la toma = Inventario inicial − Existencia actual (de Items Facturados).<br>
-      Como Items Facturados no trae la hora de cada venta, no se sabe si un producto se vendió antes o después de contarlo. Por eso el teórico es un rango:
-      entre la existencia final (si se vendió antes de contarlo) y la inicial (si se vendió después).
-      Ej.: inicial 10, vendidos 2 → teórico 8–10. Si contaste 8, 9 o 10, el producto <b>cuadra</b>. Si contaste 7, es <b>faltante de 1</b> (la diferencia mínima comprobada).<br>
-      <b>Vend.</b> negativo = entró mercancía durante la toma. Lo ideal es no recibir mercancía ni hacer traslados mientras se cuenta.</div>
+      <b>Cómo se calcula:</b> con el <b>Movimiento de Inventario</b>, el teórico de cada producto es su saldo a la <b>hora de la lectura</b>:
+      existencia del Reporte de Inventario + movimientos (ventas, entradas, devoluciones) ocurridos entre la hora del inventario y la hora en que se contó.
+      Ej.: inventario 8:00 = 10 · se cuenta a las 9:00 = 10 · se vende 1 a las 10:30 → teórico a las 9:00 = 10 → <b>cuadra</b> (la venta posterior no cuenta).<br>
+      Si un producto se contó en varias lecturas y hubo movimientos entre la primera y la última, el teórico es el rango de saldos en ese lapso y la diferencia es la mínima comprobada.<br>
+      <b>Vend.</b> = salida neta durante la toma. Productos contados después del último movimiento cargado quedan "sin validar" hasta cargar un reporte más reciente.</div>
   </div>
 </section>
 </main>
@@ -474,7 +474,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 <script src="lib/xlsx.bundle.js" defer></script>
 <script>
 "use strict";
-const VERSION = "15.1";
+const VERSION = "15.2";
 // Modo servidor: la app se sirve desde el servidor central (config.js define TI_API). Sin él funciona como antes, solo local.
 try { if (typeof window.TI_API === "string") localStorage.setItem("TI_API", window.TI_API); else window.TI_API = localStorage.getItem("TI_API") || undefined; } catch (e) {}
 const SRV = typeof window.TI_API === "string" && location.protocol.startsWith("http");
@@ -594,6 +594,8 @@ const PERFILES = {
                map: {cod:"codigo", bc:"barra", desc:"producto", stock:"existencia", costo:"costo uni"}},
   ventas:     {nombre: "Items Facturados", need: ["codigo","cod barra","producto","cantidad"],
                map: {cod:"codigo", bc:"cod barra", desc:"producto", qty:"cantidad", exist:"existencia", costo:"costo"}},
+  movimientos: {nombre: "Movimiento de Inventario", need: ["codigo","cod barra","producto","cant","fecha y hora"],
+               map: {cod:"codigo", bc:"cod barra", desc:"producto", qty:"cant", t:"fecha y hora", tipo:"tipo inventario", estatus:"estatus", saldo:"saldo", costo:"costo", us:"usuario"}},
   conteo:     {nombre: "Conteo exportado", need: ["fecha iso","codigo de barras","cantidad"],
                map: {t:"fecha iso", cod:"codigo", bc:"codigo de barras", qty:"cantidad", sede:"sede", ftoma:"fecha toma"}}
 };
@@ -638,12 +640,13 @@ async function leerArchivo(file) {
 const CAMPOS = {
   inventario: [["bc","Código de barras",1],["cod","Código interno",0],["desc","Descripción",0],["stock","Existencia",1],["costo","Costo unitario",0]],
   ventas:     [["cod","Código interno",0],["bc","Código de barras",0],["desc","Descripción",0],["qty","Cantidad vendida",1],["exist","Existencia actual (opcional)",0]],
-  conteo:     [["bc","Código de barras",1],["qty","Cantidad contada",1]]
+  conteo:     [["bc","Código de barras",1],["qty","Cantidad contada",1]],
+  movimientos: [["cod","Código interno",0],["bc","Código de barras",0],["desc","Descripción",0],["qty","Cantidad del movimiento (negativa = salida)",1],["t","Fecha y hora",1],["tipo","Tipo de movimiento",0],["costo","Costo",0]]
 };
 function pedirArchivo() {
   return new Promise(res => { const fi = $("#fileIn"); fi.value = ""; fi.onchange = () => res(fi.files[0] || null); fi.click(); });
 }
-async function importar(modo, titulo) {
+async function importar(modo, titulo, aceptar) {
   const file = await pedirArchivo(); if (!file) return null;
   let rows;
   try { rows = await leerArchivo(file); } catch (e) { toast("No se pudo leer: " + e.message); return null; }
@@ -651,8 +654,9 @@ async function importar(modo, titulo) {
   if (!rows.length) { toast("El archivo está vacío"); return null; }
   const meta = metaReporte(rows);
   const p = detectarPerfil(rows);
-  if (p && p.perfil !== modo) { toast(`Este archivo es un "${PERFILES[p.perfil].nombre}", no un "${PERFILES[modo].nombre}".`); return null; }
-  if (p) return {file, body: rows.slice(p.hi + 1), map: p.map, meta, plade: true};
+  const validos = aceptar || [modo];
+  if (p && !validos.includes(p.perfil)) { toast(`Este archivo es un "${PERFILES[p.perfil].nombre}", no un "${PERFILES[modo].nombre}".`); return null; }
+  if (p) return {file, body: rows.slice(p.hi + 1), map: p.map, meta, plade: true, perfil: p.perfil};
   // Formato desconocido: el usuario indica las columnas
   const hi = filaEncabezado(rows), headers = rows[hi].map((h, i) => cellStr(h) || `Columna ${i + 1}`), H = headers.map(normH);
   const campos = CAMPOS[modo], det = {}, usados = [];
@@ -676,7 +680,7 @@ async function importar(modo, titulo) {
       dlg.close(); res(m);
     };
   });
-  return map ? {file, body, map, meta, plade: false} : null;
+  return map ? {file, body, map, meta, plade: false, perfil: modo} : null;
 }
 const col = (r, i) => i >= 0 ? r[i] : "";
 
@@ -711,7 +715,65 @@ function construirVentas(imp) {
   v.vend = r3(Object.keys(ventas).reduce((a, k) => a + Math.max(0, vendidoHasta(v, k)), 0));
   return v;
 }
-// Vendido desde el Reporte de Inventario hasta el momento del Items Facturados.
+// Fecha y hora de un movimiento: "2026-11-20 10:45:48", "20/11/2026 10:45", "20-11-2026 10:45:48" o número de Excel
+function fechaMov(v) {
+  if (typeof v === "number" && v > 20000) { const d = new Date(Math.round((v - 25569) * 864e5)); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()).getTime(); }
+  const s = cellStr(v); let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)).getTime();
+  m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?\s*m\.?)?/i);
+  if (m) { let h = +m[4]; if (m[7]) { const pm = /p/i.test(m[7]); if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
+           return new Date(+m[3], +m[2] - 1, +m[1], h, +m[5], +(m[6] || 0)).getTime(); }
+  return null;
+}
+// Movimiento de Inventario de Plade: una fila por movimiento con su fecha y hora, cantidad (negativa = salida) y saldo.
+function construirMovimientos(imp) {
+  const {file, body, map: m, meta} = imp, movs = [], sinMatch = [], vistos = new Set(); let sinHora = 0, anuladas = 0;
+  for (const r of body) {
+    const qRaw = col(r, m.qty); if (cellStr(qRaw) === "") continue;
+    const cod = cellStr(col(r, m.cod)), bc = cellStr(col(r, m.bc));
+    if (!normBC(cod) && !normBC(bc)) continue;                              // fila TOTAL
+    if (m.estatus >= 0 && /ANUL/i.test(cellStr(r[m.estatus]))) { anuladas++; continue; }
+    const t = fechaMov(col(r, m.t)); if (!t) { sinHora++; continue; }
+    const q = parseNum(qRaw), k = (item(normBC(cod)) && normBC(cod)) || claveDe(bc) || claveDe(cod);
+    const mv = {k: k || null, cod, bc, q, t, tipo: m.tipo >= 0 ? cellStr(r[m.tipo]) : "", us: m.us >= 0 ? cellStr(r[m.us]) : "",
+                saldo: m.saldo >= 0 && cellStr(r[m.saldo]) !== "" ? parseNum(r[m.saldo]) : null};
+    const id = [cod, bc, t, q, mv.saldo, mv.us].join("|"); if (vistos.has(id)) continue; vistos.add(id);
+    movs.push(mv);
+    if (!k) sinMatch.push({cod, bc, desc: cellStr(col(r, m.desc)), q, costo: m.costo >= 0 && cellStr(r[m.costo]) !== "" ? parseNum(r[m.costo]) : null});
+  }
+  movs.sort((a, b) => a.t - b.t);
+  const tMax = movs.length ? movs[movs.length - 1].t : null;
+  const v = {tipoRep: "mov", archivo: file.name, t: meta.t || tMax || Date.now(), tReporte: !!meta.t, cargado: Date.now(), movs, sinMatch,
+             n: movs.length, total: r3(movs.reduce((a, x) => a + x.q, 0)), sinHora, anuladas,
+             desde: movs.length ? movs[0].t : null, hasta: tMax};
+  v.vend = r3(-movs.filter(x => x.k && S.inv && x.t > S.inv.t).reduce((a, x) => a + x.q, 0));
+  return v;
+}
+// Todos los movimientos cargados (sin repetir), agrupados por producto y ordenados por hora
+let MOVCACHE = null;
+function movimientosPorProducto() {
+  const reps = S.cortes.filter(c => c.tipoRep === "mov");
+  const clave = reps.map(c => c.id + ":" + c.n).join(",") + "|" + (S.inv ? S.inv.t : 0);
+  if (MOVCACHE && MOVCACHE.clave === clave) return MOVCACHE.v;
+  const por = {}, vistos = new Set(); let cubre = 0;
+  for (const c of reps) {
+    cubre = Math.max(cubre, c.t);
+    for (const x of c.movs) { if (!x.k) continue;
+      const id = [x.cod, x.bc, x.t, x.q, x.saldo, x.us].join("|"); if (vistos.has(id)) continue; vistos.add(id);
+      (por[x.k] = por[x.k] || []).push(x); }
+  }
+  for (const k in por) por[k].sort((a, b) => a.t - b.t);
+  MOVCACHE = {clave, v: {por, cubre, hay: reps.length > 0}}; return MOVCACHE.v;
+}
+// Saldo teórico de un producto en un instante: existencia del Reporte de Inventario + movimientos posteriores hasta ese instante
+function teoricoEn(s0, lista, t) {
+  let v = s0; const t0 = S.inv.t;
+  for (const x of lista || []) { if (x.t <= t0) continue; if (x.t > t) break; v += x.q; }
+  return r3(v);
+}
+const ultimoRep = () => S.cortes[S.cortes.length - 1];
+const nombreRep = c => c && c.tipoRep === "mov" ? "Movimiento de Inventario" : "Items Facturados";
+// (Formato anterior) Vendido desde el Reporte de Inventario hasta el momento del Items Facturados.
 // Con la existencia actual de Plade: inicial − actual (no le afectan las ventas hechas antes del inventario).
 // Sin esa columna: la cantidad vendida del reporte.
 function vendidoHasta(corte, k) {
@@ -768,7 +830,7 @@ $("#inResp").oninput = e => { S.meta.resp = e.target.value; DB.set("meta", S.met
 $("#btnInv").onclick = async () => {
   if (bloqueada()) return;
   if (!puede("cargar")) return toast("Tu usuario no tiene permiso para cargar reportes");
-  if (S.inv && !confirm("¿Reemplazar el Reporte de Inventario? El conteo se conserva, pero los Items Facturados cargados se borran.")) return;
+  if (S.inv && !confirm("¿Reemplazar el Reporte de Inventario? El conteo se conserva, pero el Movimiento de Inventario cargado se borra.")) return;
   const imp = await importar("inventario", "Reporte de Inventario"); if (!imp) return;
   const inv = construirInventario(imp);
   if (!inv.n) return toast("No se encontraron productos en el archivo");
@@ -784,7 +846,7 @@ $("#btnInv").onclick = async () => {
 $("#btnReset").onclick = async () => {
   if (!TOMA) return;
   if (!await pedirClave("Eliminar toma", `Se eliminará la toma de <b>${esc(TOMA.sede)}</b> del ${fechaISO(TOMA.fecha)}.<br>Autoriza un usuario con permiso para cerrar y eliminar tomas.`, "🗑 Eliminar", "cerrar")) return;
-  if (!confirm(`Se borrará la toma de ${TOMA.sede} del ${fechaISO(TOMA.fecha)}: inventario, conteo e Items Facturados. ¿Ya exportaste el resultado?`)) return;
+  if (!confirm(`Se borrará la toma de ${TOMA.sede} del ${fechaISO(TOMA.fecha)}: inventario, conteo y movimientos. ¿Ya exportaste el resultado?`)) return;
   if (!confirm("Confirma: ¿eliminar esta toma?")) return;
   await eliminarToma(TOMA.id); toast("Toma eliminada"); mostrarSelector();
 };
@@ -1296,27 +1358,40 @@ $("#btnCorte").onclick = async () => {
   if (bloqueada()) return;
   if (!puede("cargar")) return toast("Tu usuario no tiene permiso para cargar reportes");
   const falta = listoParaContar(); if (falta) return toast(falta);
-  const imp = await importar("ventas", "Corte de Items Facturados"); if (!imp) return;
-  const v = construirVentas(imp); if (!validarPeriodo(v)) return;
-  if (v.t <= S.inv.t) return toast(`Este Items Facturados se generó a las ${hora(v.t)}, antes que el Reporte de Inventario (${hora(S.inv.t)}). Exporta uno nuevo al terminar de contar.`);
+  const imp = await importar("movimientos", "Movimiento de Inventario", ["movimientos", "ventas"]); if (!imp) return;
+  const esMov = imp.perfil === "movimientos";
+  if (!esMov && S.cortes.some(c => c.tipoRep === "mov")) return toast("Esta toma ya usa el Movimiento de Inventario: carga ese reporte, no el Items Facturados.");
+  if (esMov && S.cortes.some(c => c.tipoRep !== "mov") && !confirm("Esta toma tiene un Items Facturados cargado. Se reemplazará por el Movimiento de Inventario. ¿Continuar?")) return;
+  const v = esMov ? construirMovimientos(imp) : construirVentas(imp);
+  if (esMov) {
+    if (!v.n) return toast("No se encontraron movimientos con fecha y hora en el archivo");
+    const otroDia = v.movs.filter(x => !mismoDia(x.t, S.inv.t)).length;
+    if (otroDia && !confirm(`${otroDia} movimiento(s) no son del ${fecha(S.inv.t)} (día del Reporte de Inventario). Solo cuentan los posteriores a la hora del inventario.\n\n¿Cargarlo de todas formas?`)) return;
+    if (v.hasta <= S.inv.t && !confirm(`Todos los movimientos son anteriores al Reporte de Inventario (${hora(S.inv.t)}): no cambian nada. ¿Cargarlo igual?`)) return;
+  } else if (!validarPeriodo(v)) return;
+  if (v.t <= S.inv.t) return toast(`Este reporte se generó a las ${hora(v.t)}, antes que el Reporte de Inventario (${hora(S.inv.t)}). Exporta uno nuevo al terminar de contar.`);
   if (S.cortes.some(c => Math.abs(c.t - v.t) < 1000)) return toast("Ese reporte ya está cargado");
-  if (!v.exist) toast("El archivo no trae existencia actual: se usará la cantidad vendida y se asume que no hubo ventas antes del inventario.");
+  if (!esMov && !v.exist) toast("El archivo no trae existencia actual: se usará la cantidad vendida y se asume que no hubo ventas antes del inventario.");
+  if (esMov) S.cortes = S.cortes.filter(c => c.tipoRep === "mov");
   const ultLect = CN().log.reduce((a, l) => Math.max(a, l.t), 0);
   if (ultLect > v.t && !confirm(`Hay lecturas posteriores a la hora de este reporte (${hora(v.t)}). Si ya terminaron de contar, conviene exportar uno nuevo. ¿Cargarlo igual?`)) return;
   v.id = Date.now(); S.cortes.push(v); S.cortes.sort((a, b) => a.t - b.t);
   await DB.set("cortes", S.cortes); tocarToma(); renderCierre(); renderHeader();
-  toast(`Items Facturados de las ${hora(v.t)} cargado: ${fmt(v.vend)} und vendidas durante la toma`);
+  toast(esMov ? `Movimiento de Inventario cargado: ${v.n} movimientos hasta las ${hora(v.hasta)} · ${fmt(v.vend)} und de salida neta durante la toma`
+              : `Items Facturados de las ${hora(v.t)} cargado: ${fmt(v.vend)} und vendidas durante la toma`);
 };
 function renderCortes() {
   const ul = $("#cortesList");
   if (!S.inv) { ul.innerHTML = `<li class="mut">Carga primero el Reporte de Inventario.</li>`; return; }
   const ini = `<li><div class="g"><div>${hora(S.inv.t)} · Inicio</div><small>Reporte de Inventario · ${fmt(S.inv.unidades)} und</small></div></li>`;
-  ul.innerHTML = ini + (S.cortes.length ? S.cortes.map((c, i) => `<li><div class="g"><div>${hora(c.t)} · Items Facturados${i === S.cortes.length - 1 ? " (final)" : ""}</div><small>${fmt(c.vend)} und vendidas durante la toma${c.sinMatch.length ? ` · ${c.sinMatch.length} productos vendidos que no estaban en el inventario` : ""}</small></div><button data-id="${c.id}">✕</button></li>`).join("")
+  ul.innerHTML = ini + (S.cortes.length ? S.cortes.map((c, i) => c.tipoRep === "mov"
+      ? `<li><div class="g"><div>${hora(c.t)} · Movimiento de Inventario</div><small>${c.n.toLocaleString("es-VE")} movimientos de ${hora(c.desde)} a ${hora(c.hasta)} · ${fmt(c.vend)} und de salida neta durante la toma${c.sinMatch.length ? ` · ${c.sinMatch.length} de productos que no estaban en el inventario` : ""}${c.anuladas ? ` · ${c.anuladas} anulados omitidos` : ""}${c.sinHora ? ` · ⚠ ${c.sinHora} sin hora` : ""}</small></div><button data-id="${c.id}">✕</button></li>`
+      : `<li><div class="g"><div>${hora(c.t)} · Items Facturados${i === S.cortes.length - 1 ? " (final)" : ""}</div><small>${fmt(c.vend)} und vendidas durante la toma${c.sinMatch.length ? ` · ${c.sinMatch.length} productos vendidos que no estaban en el inventario` : ""}</small></div><button data-id="${c.id}">✕</button></li>`).join("")
     : `<li class="mut">Aún no se ha cargado. Los resultados son preliminares (sin descontar ventas).</li>`);
   ul.querySelectorAll("button").forEach(b => b.onclick = async () => {
     if (bloqueada()) return;
     if (!puede("cargar")) return toast("Tu usuario no tiene permiso para cambiar los reportes");
-    if (!confirm("¿Quitar este Items Facturados?")) return;
+    if (!confirm("¿Quitar este reporte?")) return;
     S.cortes = S.cortes.filter(c => c.id !== +b.dataset.id); await DB.set("cortes", S.cortes); renderCierre(); renderHeader(); });
 }
 
@@ -1324,6 +1399,7 @@ function renderCortes() {
 const ESTADOS = {OK:"OK", OK_VENTA:"OK (venta durante el conteo)", FALTANTE:"Faltante", SOBRANTE:"Sobrante", NO_CONTADO:"No contado", NO_REGISTRADO:"No está en inventario", SIN_EXISTENCIA:"Sin existencia"};
 let filtro = "CONT", filas = [];
 function calcular() {
+  if (S.inv && S.cortes.some(c => c.tipoRep === "mov")) return calcularPorMovimientos();
   const c = CN(), items = S.inv ? S.inv.items : {};
   const cs = [{t: S.inv ? S.inv.t : 0, esInicio: true}, ...S.cortes];   // inicio + Items Facturados, por hora
   const ult = cs[cs.length - 1];
@@ -1353,6 +1429,48 @@ function calcular() {
       if (dA <= 0 && dB >= 0) { x.dif = 0; x.est = x.vVentana > 0 ? "OK_VENTA" : "OK"; }
       else if (dB < 0) { x.dif = dB; x.est = "FALTANTE"; }
       else { x.dif = dA; x.est = "SOBRANTE"; }
+    }
+    x.valor = x.costo != null ? r3(x.dif * x.costo) : null;
+    out.push(x);
+  }
+  return out;
+}
+// Cálculo con el Movimiento de Inventario: para cada producto, el teórico es el saldo en la HORA de su lectura
+// (Reporte de Inventario + movimientos entre la hora del inventario y la hora en que se pistoleó o se escribió la cantidad).
+// Si entre la primera y la última lectura del producto hubo movimientos, no se sabe si salieron de lo ya contado:
+// el teórico es el rango de saldos en esa ventana y la diferencia es la mínima comprobada.
+function calcularPorMovimientos() {
+  const c = CN(), items = S.inv.items, {por, cubre} = movimientosPorProducto(), t0 = S.inv.t;
+  const t1 = {}, t2 = {};
+  for (const l of c.log) { if (!(l.k in t1) || l.t < t1[l.k]) t1[l.k] = l.t; if (!(l.k in t2) || l.t > t2[l.k]) t2[l.k] = l.t; }
+  const out = [];
+  for (const k of new Set([...Object.keys(items), ...Object.keys(c.conteo)])) {
+    const it = items[k], contado = c.conteo[k] || 0, fue = k in c.conteo, mv = por[k] || [];
+    const x = {k, cod: it ? it.cod : "", bc: it ? it.bc : (c.raw[k] || k.replace(/^\?/, "")), desc: it ? it.desc : "SIN EXISTENCIA EN SISTEMA",
+               s0: it ? it.stock : null, vAntes: null, vVentana: null, vTotal: null, teoMin: null, teoMax: null,
+               contado, dif: 0, est: "", t1: t1[k] || null, t2: t2[k] || null, corteA: null, corteB: null, pend: false, nMov: 0,
+               costo: it && it.costo != null ? it.costo : null};
+    if (!it) { x.est = "SOBRANTE"; x.noInv = true; x.s0 = 0; x.vTotal = 0; x.teoMin = x.teoMax = 0; x.dif = contado;
+               const sm = SIN_INV()[k.replace(/^\?/, "")]; if (sm) { x.desc = sm.desc; x.cod = sm.cod; if (sm.costo != null) x.costo = sm.costo; } }
+    else {
+      const sFin = teoricoEn(x.s0, mv, cubre);
+      x.vTotal = r3(x.s0 - sFin);                                         // salida neta durante la toma (hasta el último movimiento cargado)
+      if (!fue) {
+        x.teoMin = x.teoMax = sFin;
+        if (sFin > 0) { x.est = "NO_CONTADO"; x.dif = -sFin; } else x.est = "SIN_EXISTENCIA";
+      } else {
+        const a = x.t1, b = x.t2, enVentana = mv.filter(m => m.t > Math.max(a, t0) && m.t <= b);
+        let lo = teoricoEn(x.s0, mv, a), hi = lo, v = lo;
+        for (const m of enVentana) { v = r3(v + m.q); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+        x.teoMin = lo; x.teoMax = hi; x.nMov = enVentana.length;
+        x.vAntes = r3(x.s0 - teoricoEn(x.s0, mv, a));                    // salida neta entre el inventario y la 1.ª lectura
+        x.vVentana = r3(-enVentana.reduce((s, m) => s + m.q, 0));         // salida neta mientras se contaba el producto
+        x.corteA = a; x.corteB = cubre || null; x.pend = b > cubre;       // lecturas posteriores al último movimiento cargado
+        const dA = r3(contado - hi), dB = r3(contado - lo);
+        if (dA <= 0 && dB >= 0) { x.dif = 0; x.est = enVentana.length && lo !== hi ? "OK_VENTA" : "OK"; }
+        else if (dB < 0) { x.dif = dB; x.est = "FALTANTE"; }
+        else { x.dif = dA; x.est = "SOBRANTE"; }
+      }
     }
     x.valor = x.costo != null ? r3(x.dif * x.costo) : null;
     out.push(x);
@@ -1437,7 +1555,7 @@ function renderEstado() {
 async function cerrarOReabrir() {
   if (!S.inv) return toast("Primero carga el Reporte de Inventario");
   if (!cerrada()) {
-    if (!S.cortes.length && !confirm("Aún no se cargó el Items Facturados: los resultados quedarían preliminares.\n\n¿Cerrar la toma de todas formas?")) return;
+    if (!S.cortes.length && !confirm("Aún no se cargó el Movimiento de Inventario: los resultados quedarían preliminares.\n\n¿Cerrar la toma de todas formas?")) return;
     const ok = await pedirClave("Cerrar la toma", `Toma de <b>${esc(TOMA.sede)}</b> del ${fechaISO(TOMA.fecha)} · ${CN().log.length.toLocaleString("es-VE")} lecturas.<br><br>Al cerrarla ya <b>no se podrá contar, corregir, quitar productos ni cargar reportes</b>. Solo se podrá reabrir con contraseña.<br>Autoriza un usuario con permiso para cerrar tomas.`, "🔒 Cerrar toma", "cerrar");
     if (!ok) return;
     cerrarCamara(); saveCount(true);
@@ -1465,8 +1583,8 @@ function renderCierre() {
   const pw = $("#pendWarn");
   pw.hidden = !r.pend || cerrada();
   pw.innerHTML = S.cortes.length
-    ? `⚠ <b>${r.pend} productos</b> se contaron después del Items Facturados de las ${hora(S.cortes[S.cortes.length - 1].t)}. Exporta y carga uno nuevo para validarlos.`
-    : `⚠ Resultado preliminar: al terminar de contar, carga el <b>Items Facturados</b> del día para descontar lo vendido durante la toma.`;
+    ? `⚠ <b>${r.pend} productos</b> se contaron después del último movimiento cargado (${hora(ultimoRep().hasta || ultimoRep().t)}). Exporta y carga un Movimiento de Inventario más reciente para validarlos.`
+    : `⚠ Resultado preliminar: al terminar de contar, carga el <b>Movimiento de Inventario</b> del día para descontar lo vendido durante la toma.`;
   const $$ = v => r.conCosto ? `<br><small>$ ${r3(v).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} al costo</small>` : "";
   const usdTxt = v => "$ " + r3(v).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2});
   $("#valores").hidden = !r.contados;
@@ -1579,7 +1697,7 @@ const filaRes = x => [x.cod, x.bc, x.desc, x.s0, x.vAntes, x.vVentana, x.vTotal,
   fechaHora(x.t1), fechaHora(x.t2), x.costo, x.valor];
 const ordenEst = {FALTANTE: 0, SOBRANTE: 1, NO_REGISTRADO: 2, NO_CONTADO: 3, OK_VENTA: 4, OK: 5, SIN_EXISTENCIA: 6};
 function subtitulo() {
-  const v = S.cortes.length ? `Validado con Items Facturados de las ${hora(S.cortes[S.cortes.length - 1].t)}` : "PRELIMINAR · sin Items Facturados";
+  const v = S.cortes.length ? `Validado con ${nombreRep(ultimoRep())} de las ${hora(ultimoRep().t)}` : "PRELIMINAR · sin Movimiento de Inventario";
   return [S.meta.sede || "Sin sede", "Conteo del " + (TOMA ? fechaISO(TOMA.fecha) : fecha(S.inv.t)), S.meta.resp, v, cerrada() ? "TOMA CERRADA" : "TOMA ABIERTA"].filter(Boolean).join("   ·   ");
 }
 async function libroResultado() {
@@ -1597,13 +1715,13 @@ async function libroResultado() {
     ["Sede", S.meta.sede], ["Fecha del conteo", TOMA ? fechaISO(TOMA.fecha) : fecha(S.inv.t)], ["Inventarista / Analista", S.meta.resp],
     ["Estado de la toma", cerrada() ? `CERRADA el ${fechaHora(S.meta.cerrada.t)} · cerró ${S.meta.cerrada.usuario || ""}${S.meta.cerrada.autorizo ? " · autorizó " + S.meta.cerrada.autorizo : ""}` : "ABIERTA (los resultados pueden cambiar)"],
     ["Reporte de Inventario", `${S.inv.archivo}  ·  generado ${fechaHora(S.inv.t)}`],
-    ["Items Facturados", val ? `${S.cortes[S.cortes.length - 1].archivo}  ·  generado ${fechaHora(S.cortes[S.cortes.length - 1].t)}` : "NO CARGADO · resultado preliminar"],
+    ["Movimiento de Inventario", val ? `${ultimoRep().archivo}  ·  generado ${fechaHora(ultimoRep().t)}${ultimoRep().tipoRep === "mov" ? `  ·  ${ultimoRep().n} movimientos hasta ${fechaHora(ultimoRep().hasta)}` : "  ·  (Items Facturados)"}` : "NO CARGADO · resultado preliminar"],
     ["Lecturas", `${log.length.toLocaleString("es-VE")}  ·  de ${fechaHora(log[0] && log[0].t) || "—"} a ${fechaHora(log.length && log[log.length - 1].t) || "—"}`],
     ["Exportado", fechaHora(Date.now())]];
   const merges = ws["!merges"]; let rr = 3;
   for (const [a, b] of info) {
     ponerCelda(ws, rr, 0, a, lab);
-    for (let c = 1; c < nC; c++) ponerCelda(ws, rr, c, c === 1 ? (b || "") : "", c === 1 && a === "Items Facturados" && !val ? {...valS, font: {bold: true, sz: 10, color: {rgb: COL.warn}}} : valS);
+    for (let c = 1; c < nC; c++) ponerCelda(ws, rr, c, c === 1 ? (b || "") : "", c === 1 && a === "Movimiento de Inventario" && !val ? {...valS, font: {bold: true, sz: 10, color: {rgb: COL.warn}}} : valS);
     merges.push({s: {r: rr, c: 1}, e: {r: rr, c: nC - 1}}); rr++;
   }
   rr++;
@@ -1666,7 +1784,7 @@ async function libroResultado() {
     rr++;
   }
   const notas = ["Cómo se calcula",
-    "Vendido en la toma = Inventario inicial − Existencia actual del Items Facturados.",
+    "Teórico de cada producto = Inventario inicial + movimientos (ventas, entradas) hasta la HORA en que se contó (Movimiento de Inventario de Plade).",
     "Como no se sabe si un producto se vendió antes o después de contarlo, el teórico es un rango (de la existencia final a la inicial).",
     "Si lo contado cae dentro del rango, el producto cuadra; si no, la diferencia es la mínima comprobada.",
     "Lo contado que no tiene existencia en el sistema se marca como sobrante.",
@@ -1699,7 +1817,7 @@ async function libroResultado() {
   // --- Reportes ---
   const colsR = [{h: "Generado", w: 22}, {h: "Reporte", w: 22}, {h: "Archivo", w: 46}, {h: "Unidades vendidas en el día", w: 16, fmt: FMT.und}, {h: "Vendido durante la toma", w: 16, fmt: FMT.und}];
   X.utils.book_append_sheet(wb, hojaTabla("REPORTES DE PLADE USADOS", subtitulo(), colsR,
-    [[fechaHora(S.inv.t), "Reporte de Inventario", S.inv.archivo, null, null], ...S.cortes.map(c => [fechaHora(c.t), "Items Facturados", c.archivo, c.total, c.vend])]), "Reportes");
+    [[fechaHora(S.inv.t), "Reporte de Inventario", S.inv.archivo, null, null], ...S.cortes.map(c => [fechaHora(c.t), nombreRep(c), c.archivo, c.total, c.vend])]), "Reportes");
   return wb;
 }
 
@@ -1736,7 +1854,7 @@ async function pdfDiferencias() {
   let y = 100; const info = [
     ["Inventarista / Analista", S.meta.resp || "—"],
     ["Reporte de Inventario", `${fechaHora(S.inv.t)}`],
-    ["Items Facturados", val ? fechaHora(ultC.t) : "No cargado"],
+    ["Movimiento de Inventario", val ? fechaHora(ultC.tipoRep === "mov" ? ultC.hasta : ultC.t) : "No cargado"],
     ["Productos contados", `${r.contados.toLocaleString("es-VE")} · ${CN().log.length.toLocaleString("es-VE")} lecturas`]];
   const cw = (W - 2 * M) / 4;
   info.forEach(([a, b], i) => {
@@ -1799,7 +1917,7 @@ async function pdfDiferencias() {
   if (!val) {
     doc.setFillColor(255, 244, 224); doc.setDrawColor(243, 199, 122); doc.roundedRect(M, y, W - 2 * M, 26, 4, 4, "FD");
     doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(122, 75, 0);
-    doc.text("Resultado preliminar: no se ha cargado el Items Facturados, las ventas durante la toma no están descontadas.", M + 10, y + 16, {maxWidth: W - 2 * M - 20});
+    doc.text("Resultado preliminar: no se ha cargado el Movimiento de Inventario, las ventas durante la toma no están descontadas.", M + 10, y + 16, {maxWidth: W - 2 * M - 20});
     y += 36;
   }
 
@@ -1924,7 +2042,7 @@ function renderAjustes() {
   $("#ajInfo").innerHTML = `Salida: <b>${sal.out.length}</b> códigos · ${u(sal)} und &nbsp;·&nbsp; Entrada: <b>${ent.out.length}</b> códigos · ${u(ent)} und` +
     (ent.noInv.length ? `<span class="w">⚠ ${ent.noInv.length} código(s) de la entrada no estaban en el Reporte de Inventario: verifica que existan en Plade.</span>` : "") +
     (sal.sinCod.length + ent.sinCod.length ? `<span class="w">⚠ ${sal.sinCod.length + ent.sinCod.length} producto(s) sin código se omitieron.</span>` : "") +
-    (S.cortes.length ? "" : `<span class="w">⚠ Aún no está validado con Items Facturados: las diferencias son preliminares.</span>`);
+    (S.cortes.length ? "" : `<span class="w">⚠ Aún no está validado con el Movimiento de Inventario: las diferencias son preliminares.</span>`);
   $("#btnAjSal").textContent = `⬇ SALIDA · ${sal.out.length} códigos`; $("#btnAjEnt").textContent = `⬇ ENTRADA · ${ent.out.length} códigos`;
   $("#btnWaSal").textContent = `📲 SALIDA (${sal.out.length})`; $("#btnWaEnt").textContent = `📲 ENTRADA (${ent.out.length})`;
 }
@@ -1933,7 +2051,7 @@ async function descargarAjuste(tipo) {
   if (!puedeExportar()) return;
   const a = archivosAjuste().find(z => z.tipo === tipo);
   if (!a) return toast(`No hay ${tipo === "SALIDA" ? "faltantes" : "sobrantes"} para ajustar`);
-  if (!S.cortes.length && !confirm("La toma aún no está validada con el Items Facturados: las diferencias son preliminares y el ajuste podría quedar mal.\n\n¿Generar el archivo de todas formas?")) return;
+  if (!S.cortes.length && !confirm("La toma aún no está validada con el Movimiento de Inventario: las diferencias son preliminares y el ajuste podría quedar mal.\n\n¿Generar el archivo de todas formas?")) return;
   descargar(a.blob, a.nombre); toast(`${a.nombre}: ${a.n} códigos`);
 }
 // Envío directo por WhatsApp (un toque): los CSV se generan al instante y se comparten de inmediato
@@ -1942,10 +2060,10 @@ function enviarAjustes(tipos) {
   if (!puedeExportar()) return;
   const lista = archivosAjuste().filter(a => tipos.includes(a.tipo));
   if (!lista.length) return toast(tipos.length > 1 ? "No hay diferencias para ajustar" : `No hay ${tipos[0] === "SALIDA" ? "faltantes" : "sobrantes"} para ajustar`);
-  if (!S.cortes.length && !confirm("La toma aún no está validada con el Items Facturados: las diferencias son preliminares.\n\n¿Enviar el ajuste de todas formas?")) return;
+  if (!S.cortes.length && !confirm("La toma aún no está validada con el Movimiento de Inventario: las diferencias son preliminares.\n\n¿Enviar el ajuste de todas formas?")) return;
   const txt = [`*Ajuste${lista.length > 1 ? "s" : ""} para Plade · ${sedeCorta()}*`, `Conteo del ${TOMA ? fechaISO(TOMA.fecha) : ""}${S.meta.resp ? " · " + S.meta.resp : ""}`,
     ...lista.map(a => `${a.tipo === "SALIDA" ? "🔴" : "🔵"} ${a.tipo}: ${a.n} códigos · ${fmt(a.u)} und (${a.nombre})`),
-    S.cortes.length ? "" : "⚠ Preliminar: sin validar con Items Facturados"].filter(Boolean).join("\n");
+    S.cortes.length ? "" : "⚠ Preliminar: sin validar con el Movimiento de Inventario"].filter(Boolean).join("\n");
   compartirYa(lista, txt);
 }
 $("#btnWaSal").onclick = () => enviarAjustes(["SALIDA"]);
@@ -1991,7 +2109,7 @@ $("#btnPdf").onclick = e => conBoton(e.currentTarget, async () => { descargar(aw
 function textoResumen() {
   const r = resumen(calcular()), F = r.factor.c, ef = evaluarFactor(F.fU), ev = evaluarFactor(F.fV), usd = v => "$ " + montoTxt(v);
   return [`*Toma de inventario · ${sedeCorta()}*`, `Conteo del ${TOMA ? fechaISO(TOMA.fecha) : ""}${S.meta.resp ? " · " + S.meta.resp : ""}`,
-    (cerrada() ? "🔒 Toma cerrada · " : "Toma abierta · ") + (S.cortes.length ? "validada con Items Facturados" : "⚠ preliminar (sin Items Facturados)"), "",
+    (cerrada() ? "🔒 Toma cerrada · " : "Toma abierta · ") + (S.cortes.length ? "validada con " + nombreRep(ultimoRep()) : "⚠ preliminar (sin Movimiento de Inventario)"), "",
     `🔴 Faltantes: ${r.FALTANTE} productos · ${fmt(r.uFal)} und${r.conCosto ? " · pérdida " + usd(r.vFal) : ""}`,
     `🔵 Sobrantes: ${r.SOBRANTE} productos · ${fmt(r.uSob)} und${r.conCosto ? " · " + usd(r.vSob) : ""}`,
     `🟢 Cuadran: ${r.OK + r.OK_VENTA} de ${r.contados} contados`, "",
@@ -2133,7 +2251,7 @@ async function mostrarSelector() {
   $("#tLista").querySelectorAll("button[data-a]").forEach(b => b.onclick = () => abrirToma(l.find(x => x.id === b.dataset.a)));
   $("#tLista").querySelectorAll("button[data-d]").forEach(b => b.onclick = async () => {
     const t = l.find(x => x.id === b.dataset.d);
-    if (!confirm(`¿Eliminar la toma de ${t.sede} del ${fechaISO(t.fecha)}? Se borran su inventario, conteo e Items Facturados.`)) return;
+    if (!confirm(`¿Eliminar la toma de ${t.sede} del ${fechaISO(t.fecha)}? Se borran su inventario, conteo y movimientos.`)) return;
     if (!await pedirClave("Eliminar toma", `Toma de <b>${esc(t.sede)}</b> del ${fechaISO(t.fecha)}.<br>Autoriza un usuario con permiso para eliminar tomas.`, "🗑 Eliminar", "cerrar")) return;
     await eliminarToma(t.id); mostrarSelector(); });
   $("#selToma").hidden = false;
@@ -2166,7 +2284,7 @@ const PERMISOS = [
   ["verStockCerrada", "Ver la existencia del sistema con la toma CERRADA"],
   ["verDifAbierta", "Ver diferencias y resultados con la toma ABIERTA"],
   ["verDifCerrada", "Ver diferencias y resultados con la toma CERRADA"],
-  ["cargar", "Cargar Reporte de Inventario e Items Facturados"],
+  ["cargar", "Cargar Reporte de Inventario y Movimiento de Inventario"],
   ["exportar", "Exportar y enviar reportes (Excel, PDF, WhatsApp, ajustes)"],
   ["cerrar", "Cerrar, reabrir y eliminar tomas"],
   ["quitar", "Autorizar quitar productos del conteo"],
@@ -2334,7 +2452,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 /* ---------- Sincronización con el servidor central (solo en modo servidor) ----------
-   - El administrador carga el inventario y los Items Facturados UNA vez; se suben y cada teléfono los descarga.
+   - El administrador carga el inventario y el Movimiento de Inventario UNA vez; se suben y cada teléfono los descarga.
    - Cada teléfono trabaja con su copia local (sin internet también) y sube su conteo cuando hay conexión.
    - Quien tenga el permiso "equipo" recibe los conteos de todos y ve el resultado consolidado.        */
 const SY = {token: null, device: "", st: {pend: {}}, corriendo: false, otraVez: false, aplicando: false, err: "", grant: null, pwActual: "", eqVer: 0, timer: null};
@@ -2437,7 +2555,7 @@ async function sincronizar() {
       if (S.inv && puede("cargar")) { const t = await api(ruta + "/inv", {method: "PUT", body: {inv: S.inv}, timeout: 180000}); st.inv_ver = t.inv_ver; st.inv_stock = true; st.cortes_ver = t.cortes_ver; toast("☁ Inventario subido: los teléfonos lo recibirán al sincronizar"); }
       hecho("inv", v); }
     if (st.pend.cortes) { const v = st.pend.cortes;
-      if (puede("cargar")) { try { const t = await api(ruta + "/cortes", {method: "PUT", body: {cortes: S.cortes, base_inv: st.inv_ver}, timeout: 120000}); st.cortes_ver = t.cortes_ver; if (S.cortes.length) toast("☁ Items Facturados subido al servidor"); }
+      if (puede("cargar")) { try { const t = await api(ruta + "/cortes", {method: "PUT", body: {cortes: S.cortes, base_inv: st.inv_ver}, timeout: 120000}); st.cortes_ver = t.cortes_ver; if (S.cortes.length) toast("☁ " + nombreRep(ultimoRep()) + " subido al servidor"); }
         catch (e) { if (e.status !== 409 && e.status !== 423) throw e; toast("⚠ " + e.message); st.cortes_ver = -1; } }
       hecho("cortes", v); }
     if (st.pend.meta) { const v = st.pend.meta;

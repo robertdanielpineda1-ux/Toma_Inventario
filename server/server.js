@@ -1,6 +1,6 @@
 // API central de Toma de Inventario
 // - Usuarios, roles y permisos (los mismos permisos que usa la PWA)
-// - Tomas (sede + fecha): el administrador sube UNA vez el Reporte de Inventario y los Items Facturados
+// - Tomas (sede + fecha): el administrador sube UNA vez el Reporte de Inventario y el Movimiento de Inventario
 // - Cada teléfono descarga esa data, trabaja sin internet y sube su conteo cuando hay conexión
 // - Panel central en /admin para ver y consumir toda la información
 import express from "express";
@@ -331,13 +331,13 @@ api.put("/tomas/:id/inv", auth, need("cargar"), (req, res) => {
   const inv = req.body?.inv;
   if (!inv || typeof inv.items !== "object") return res.status(400).json({ error: "Inventario no válido" });
   const v = now(), resumen = { archivo: inv.archivo, t: inv.t, n: Object.keys(inv.items).length, unidades: inv.unidades, empresa: inv.empresa };
-  // Al reemplazar el inventario se borran los Items Facturados (igual que en la app)
+  // Al reemplazar el inventario se borra el Movimiento de Inventario (igual que en la app)
   db.prepare("UPDATE tomas SET inv = ?, inv_ver = ?, inv_resumen = ?, cortes = '[]', cortes_ver = ?, act = ? WHERE id = ?")
     .run(JSON.stringify(inv), v, JSON.stringify(resumen), v, v, t.id);
   audit(req.user.u, "subió inventario", `${t.id}: ${inv.archivo} (${resumen.n} productos)`);
   res.json(tomaPublica(req, db.prepare("SELECT * FROM tomas WHERE id = ?").get(t.id)));
 });
-// Items Facturados (cortes)
+// Movimiento de Inventario / Items Facturados (cortes)
 api.get("/tomas/:id/cortes", auth, (req, res) => {
   const t = getToma(req, res); if (!t) return;
   if (!puedeCortes(req, t)) return res.status(403).json({ error: "Sin permiso" });
@@ -348,9 +348,9 @@ api.put("/tomas/:id/cortes", auth, need("cargar"), (req, res) => {
   if (estaCerrada(t)) return res.status(423).json({ error: "La toma está cerrada en el servidor" });
   const cortes = req.body?.cortes;
   if (!Array.isArray(cortes)) return res.status(400).json({ error: "Datos no válidos" });
-  if (req.body.base_inv && req.body.base_inv !== t.inv_ver) return res.status(409).json({ error: "El inventario cambió en el servidor; vuelve a cargar los Items Facturados", toma: tomaPublica(req, t) });
+  if (req.body.base_inv && req.body.base_inv !== t.inv_ver) return res.status(409).json({ error: "El inventario cambió en el servidor; vuelve a cargar el Movimiento de Inventario", toma: tomaPublica(req, t) });
   db.prepare("UPDATE tomas SET cortes = ?, cortes_ver = ?, act = ? WHERE id = ?").run(JSON.stringify(cortes), now(), now(), t.id);
-  audit(req.user.u, "actualizó Items Facturados", `${t.id}: ${cortes.length} reporte(s)`);
+  audit(req.user.u, "actualizó Movimiento de Inventario", `${t.id}: ${cortes.length} reporte(s)`);
   res.json(tomaPublica(req, db.prepare("SELECT * FROM tomas WHERE id = ?").get(t.id)));
 });
 // Estado de la toma: cerrar / reabrir / tolerancia. "base" evita que un teléfono con datos viejos deshaga un cierre.
@@ -419,11 +419,17 @@ api.delete("/tomas/:id/conteos/:u/:device", auth, need("cerrar"), (req, res) => 
   res.json({ ok: true });
 });
 
-// Consolidado para el panel: inventario + suma de todos los conteos (+ existencia final si hay Items Facturados)
+// Consolidado para el panel: inventario + suma de todos los conteos (+ teórico a la hora de cada lectura si hay Movimiento de Inventario)
 api.get("/tomas/:id/consolidado", auth, need("equipo"), (req, res) => {
   const t = getToma(req, res); if (!t) return;
   const inv = J(t.inv), items = inv ? inv.items : {}, stock = puedeStock(req, t), dif = puedeDif(req, t);
   const cortes = J(t.cortes) || [], ult = cortes.length ? cortes[cortes.length - 1] : null;
+  // Movimientos por producto (sin repetir), para el cálculo por hora de lectura
+  const movs = {}, t0 = inv ? inv.t : 0; let cubre = 0;
+  if (ult && ult.tipoRep === "mov") { const vistos = new Set();
+    for (const c of cortes) if (c.tipoRep === "mov") { cubre = Math.max(cubre, c.t || 0);
+      for (const m of c.movs || []) { if (!m.k) continue; const id = [m.cod, m.bc, m.t, m.q, m.saldo, m.us].join("|"); if (vistos.has(id)) continue; vistos.add(id); (movs[m.k] = movs[m.k] || []).push(m); } }
+    for (const k in movs) movs[k].sort((a, b) => a.t - b.t); }
   const filas = db.prepare("SELECT c.u, c.device, c.data, c.lect, c.prod, c.unidades, c.act, COALESCE(us.nombre, c.u) nombre FROM conteos c LEFT JOIN users us ON us.u = c.u WHERE c.toma = ?").all(t.id);
   const contado = {}, por = {}, raw = {}, t1 = {}, t2 = {};
   const usuarios = filas.map(f => { const cnt = J(f.data) || { conteo: {}, log: [] };
@@ -437,10 +443,17 @@ api.get("/tomas/:id/consolidado", auth, need("equipo"), (req, res) => {
     const x = { k, cod: it ? it.cod : "", bc: it ? it.bc : (raw[k] || k.replace(/^\?/, "")), desc: it ? it.desc : "SIN EXISTENCIA EN SISTEMA",
       contado: fue ? contado[k] : null, por: por[k] || {}, t1: t1[k] || null, t2: t2[k] || null, enInv: !!it };
     if (stock) { x.stock = it ? it.stock : 0; x.costo = it && it.costo != null ? it.costo : null; }
-    if (dif && ult && ult.exist) x.final = it ? (k in ult.exist ? ult.exist[k] : it.stock) : 0;
+    if (dif && ult && ult.tipoRep === "mov" && it) {
+      // Movimiento de Inventario: teórico = saldo a la hora de la lectura (inventario + movimientos posteriores a su hora)
+      const mv = movs[k] || [], en = t => { let v = it.stock; for (const m of mv) { if (m.t <= t0) continue; if (m.t > t) break; v += m.q; } return r3(v); };
+      x.final = en(cubre);
+      if (fue) { let lo = en(x.t1), hi = lo, v = lo;
+        for (const m of mv) if (m.t > Math.max(x.t1, t0) && m.t <= x.t2) { v = r3(v + m.q); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+        x.tmin = lo; x.tmax = hi; x.pend = x.t2 > cubre; }
+    } else if (dif && ult && ult.exist) x.final = it ? (k in ult.exist ? ult.exist[k] : it.stock) : 0;
     out.push(x);
   }
-  res.json({ toma: tomaPublica(req, t), stock, dif, corte: ult ? { t: ult.t, archivo: ult.archivo, conExist: !!ult.exist } : null, usuarios, filas: out });
+  res.json({ toma: tomaPublica(req, t), stock, dif, corte: ult ? { t: ult.t, archivo: ult.archivo, conExist: !!ult.exist || ult.tipoRep === "mov", mov: ult.tipoRep === "mov", hasta: ult.hasta || null } : null, usuarios, filas: out });
 });
 
 /* ---------- Archivos: PWA en "/", panel en "/admin" ---------- */

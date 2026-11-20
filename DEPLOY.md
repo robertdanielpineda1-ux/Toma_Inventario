@@ -15,7 +15,7 @@ Datos: un archivo SQLite en el volumen `/data` (respáldalo).
 1. **Administrador** crea la toma (sede + fecha) en el panel o en la app.
 2. En la app (puede ser en la PC), abre la toma y carga el **Reporte de Inventario** una sola vez → se sube al servidor.
 3. Cada **teléfono** entra con su usuario, abre la toma y la descarga. Desde ahí cuenta **sin internet**; su conteo se sube solo cada vez que hay señal (indicador ☁ arriba a la derecha).
-4. Al terminar, el administrador carga el **Items Facturados** en la app → se sube y queda disponible.
+4. Al terminar, el administrador carga el **Movimiento de Inventario** de Plade en la app → se sube y queda disponible. Cada producto se compara con su saldo a la **hora en que se contó** (inventario inicial + movimientos hasta esa hora), así una venta posterior al conteo no genera un sobrante ficticio. Las tomas que ya tenían un Items Facturados (formato anterior) siguen funcionando.
 5. El administrador ve todo consolidado en el panel (`/admin`) y en la app → Cierre (con factores, PDF, ajustes para Plade). Cierra la toma desde cualquiera de los dos.
 
 ### Roles
