@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guía de uso · Toma de Inventario</title>
+<style>
+@page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+:root { --pri:#0f4c5c; --pri2:#16697a; --tx:#1d2731; --mut:#5f6b76; --br:#d9e1e6; --soft:#eef3f5; --warn:#fff6e0; --ok:#1e8e3e; --bad:#c62828; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--tx); font: 10.5pt/1.5 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+h1 { font-size: 26pt; color: var(--pri); margin: 0 0 6px; line-height: 1.15; }
+h2 { font-size: 15pt; color: var(--pri); margin: 0 0 8px; padding-bottom: 5px; border-bottom: 2px solid var(--pri); break-after: avoid; }
+h3 { font-size: 11.5pt; color: var(--pri2); margin: 14px 0 4px; break-after: avoid; }
+p { margin: 4px 0 8px; }
+section { break-before: page; }
+section.sin-salto { break-before: auto; margin-top: 18px; }
+ol, ul { margin: 4px 0 10px; padding-left: 20px; }
+li { margin: 3px 0; }
+b { color: #0b3a46; }
+.mut { color: var(--mut); font-size: 9.5pt; }
+.portada { height: 255mm; display: flex; flex-direction: column; justify-content: center; }
+.portada .bar { width: 70px; height: 6px; background: #ffd166; border-radius: 3px; margin: 14px 0 18px; }
+.portada .sub { font-size: 13pt; color: var(--mut); max-width: 135mm; }
+.dirs { margin-top: 26px; border: 1px solid var(--br); border-radius: 10px; padding: 12px 16px; max-width: 150mm; }
+.dirs div { margin: 4px 0; }
+.dirs code { font-size: 10.5pt; }
+code { font-family: Consolas, "Cascadia Mono", monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; font-size: 9.5pt; }
+.shot { margin: 8px 0 12px; break-inside: avoid; }
+.shot img { display: block; width: 128mm; margin: 0 auto; border: 1px solid var(--br); border-radius: 8px; }
+.shot figcaption, .tel figcaption { font-size: 8.8pt; color: var(--mut); margin-top: 4px; text-align: center; }
+.tels { display: flex; gap: 10px; margin: 8px 0 12px; break-inside: avoid; justify-content: center; }
+.tel { flex: 0 0 56mm; margin: 0; }
+.tel img { display: block; width: 100%; border: 1px solid var(--br); border-radius: 10px; }
+.tels.dos .tel { flex-basis: 64mm; }
+.nota { background: var(--warn); border-left: 4px solid #e0a100; border-radius: 6px; padding: 7px 11px; margin: 8px 0 10px; font-size: 9.8pt; break-inside: avoid; }
+.tip { background: #eaf6ed; border-left: 4px solid var(--ok); border-radius: 6px; padding: 7px 11px; margin: 8px 0 10px; font-size: 9.8pt; break-inside: avoid; }
+table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9.5pt; break-inside: avoid; }
+th { background: var(--pri); color: #fff; text-align: left; padding: 6px 8px; font-weight: 600; }
+td { padding: 6px 8px; border-bottom: 1px solid var(--br); vertical-align: top; }
+tr:nth-child(even) td { background: #f7f9fa; }
+.pasos { counter-reset: p; list-style: none; padding: 0; }
+.pasos > li { counter-increment: p; position: relative; padding-left: 30px; margin: 7px 0; }
+.pasos > li::before { content: counter(p); position: absolute; left: 0; top: 0; width: 21px; height: 21px; border-radius: 50%; background: var(--pri); color: #fff; font-size: 9pt; font-weight: 700; text-align: center; line-height: 21px; }
+.flujo { display: flex; gap: 6px; margin: 10px 0 14px; break-inside: avoid; }
+.flujo div { flex: 1; background: var(--soft); border-radius: 8px; padding: 8px; font-size: 9pt; text-align: center; border-top: 4px solid var(--pri2); }
+.flujo b { display: block; font-size: 9.5pt; margin-bottom: 2px; }
+.indice { columns: 2; column-gap: 24px; padding-left: 18px; }
+</style>
+</head>
+<body>
+
+<div class="portada">
+  <div class="mut" style="font-size:11pt;letter-spacing:.5px">GRUPO PANACEA PREMIUM</div>
+  <h1>Toma de Inventario<br>Guía de uso</h1>
+  <div class="bar"></div>
+  <div class="sub">Cómo administrar usuarios y sedes, cargar el inventario una sola vez, contar desde los teléfonos y descargar los resultados.</div>
+  <div class="dirs">
+    <div><b>App de conteo (teléfonos y PC):</b> <code>https://conteos.grupopanaceapremium.com</code></div>
+    <div><b>Panel central (PC):</b> <code>https://conteos.grupopanaceapremium.com/admin/</code></div>
+  </div>
+  <h3 style="margin-top:30px">Contenido</h3>
+  <ol class="indice">
+    <li>Cómo funciona</li>
+    <li>Entrar al panel central</li>
+    <li>Sedes</li>
+    <li>Crear un usuario</li>
+    <li>Cambiar claves</li>
+    <li>Crear una toma</li>
+    <li>Cargar el inventario</li>
+    <li>Contar desde el teléfono</li>
+    <li>Items Facturados y cierre</li>
+    <li>Ver y descargar resultados</li>
+    <li>Problemas frecuentes</li>
+  </ol>
+  <p class="mut" style="margin-top:24px">Las imágenes de esta guía usan datos de demostración.</p>
+</div>
+
+<section>
+  <h2>1. Cómo funciona</h2>
+  <p>Toda la información vive en un <b>servidor central</b>. El inventario se carga <b>una sola vez</b> y cada teléfono lo descarga. Cada persona cuenta en su teléfono, incluso <b>sin internet</b>, y su conteo se sube solo cuando hay señal. El administrador ve todo junto, en la app y en el panel.</p>
+  <div class="flujo">
+    <div><b>1. Crear toma</b>Sede y fecha, en el panel.</div>
+    <div><b>2. Cargar inventario</b>Excel de Plade, una sola vez.</div>
+    <div><b>3. Contar</b>Cada teléfono, con o sin señal.</div>
+    <div><b>4. Items Facturados</b>Al terminar de contar.</div>
+    <div><b>5. Resultados</b>Cierre, Excel, PDF y ajustes.</div>
+  </div>
+  <h3>Perfiles</h3>
+  <table>
+    <tr><th>Perfil</th><th>Sedes</th><th>Existencia del sistema</th><th>Resultados</th><th>Puede</th></tr>
+    <tr><td><b>Inventarista</b></td><td>Solo las asignadas</td><td>Nunca (no la recibe)</td><td>No</td><td>Contar y ver solo lo que él contó</td></tr>
+    <tr><td><b>Gerente</b></td><td>Solo las asignadas</td><td>Con la toma cerrada</td><td>Con la toma cerrada</td><td>Crear tomas y cargar reportes de su sede; ver el conteo del equipo</td></tr>
+    <tr><td><b>Auditor general</b></td><td>Todas</td><td>Siempre</td><td>Siempre</td><td>Ver todo, sin modificar</td></tr>
+    <tr><td><b>Administrador</b></td><td>Todas</td><td>Siempre</td><td>Siempre</td><td>Todo, incluidos usuarios, sedes y cierre de tomas</td></tr>
+  </table>
+  <div class="tip">El inventarista cuenta <b>a ciegas</b>: el servidor no le envía la existencia ni el costo, así que no puede “cuadrar” el conteo.</div>
+</section>
+
+<section>
+  <h2>2. Entrar al panel central</h2>
+  <ol class="pasos">
+    <li>En la PC abre <code>https://conteos.grupopanaceapremium.com/admin/</code>.</li>
+    <li>Escribe tu <b>usuario</b> y <b>contraseña</b> y pulsa <b>Entrar</b>. El panel es para administradores, auditores y gerentes; los inventaristas solo usan la app.</li>
+  </ol>
+  <figure class="shot"><img src="img/01-panel-login.jpg"><figcaption>Pantalla de entrada del panel.</figcaption></figure>
+  <p>Arriba tienes las pestañas <b>Tomas</b>, <b>Usuarios</b>, <b>Sedes</b> y <b>Actividad</b>, el botón <b>📱 Abrir la app</b>, <b>🔑 Mi clave</b> y <b>Salir</b>.</p>
+
+  <h2 style="margin-top:22px">3. Sedes</h2>
+  <p>La pestaña <b>Sedes</b> tiene el catálogo central con las 15 sedes. Es la misma lista que aparece al crear tomas y al asignar sedes a los usuarios, en el panel y en los teléfonos.</p>
+  <ul>
+    <li><b>Agregar:</b> escribe el nombre como <code>Nombre · Ciudad</code> y pulsa <b>➕ Agregar sede</b>.</li>
+    <li><b>Quitar:</b> si la sede ya tiene tomas o usuarios, solo se desactiva y se conserva su historial. Se puede <b>Reactivar</b>.</li>
+  </ul>
+  <figure class="shot"><img src="img/03-panel-sedes.jpg"><figcaption>Catálogo de sedes.</figcaption></figure>
+</section>
+
+<section>
+  <h2>4. Crear un usuario</h2>
+  <ol class="pasos">
+    <li>En el panel abre la pestaña <b>Usuarios</b> y pulsa <b>➕ Nuevo usuario</b>.</li>
+    <li>Escribe <b>Nombre y apellido</b>, el <b>Usuario</b> con el que entrará (sin espacios, por ejemplo <code>ana.rodriguez</code>) y una <b>Contraseña</b> de al menos 4 caracteres.</li>
+    <li>Elige el <b>Perfil</b>: Inventarista, Gerente de sede, Auditor general o Administrador. Los permisos se marcan solos según el perfil; puedes ajustarlos para esa persona.</li>
+    <li>Para <b>Inventarista</b> y <b>Gerente</b> marca <b>al menos una sede</b>. Solo verán las tomas de esas sedes. El Auditor y el Administrador ven todas.</li>
+    <li>Pulsa <b>Guardar</b>. Entrega a la persona su usuario y contraseña.</li>
+  </ol>
+  <figure class="shot"><img src="img/05-panel-nuevo-usuario.jpg"><figcaption>Nuevo usuario: perfil Inventarista con la sede Premium Guacara.</figcaption></figure>
+  <figure class="shot"><img src="img/04-panel-usuarios.jpg"><figcaption>Lista de usuarios con su perfil, sedes y último ingreso.</figcaption></figure>
+  <div class="tip">Para que alguien deje de entrar sin borrar su historial, abre <b>✎ Editar</b> y desmarca <b>Usuario activo</b>. Los cambios de permisos llegan a los teléfonos al sincronizar.</div>
+</section>
+
+<section>
+  <h2>5. Cambiar claves</h2>
+  <h3>Poner la clave que quieras a otra persona</h3>
+  <ol class="pasos">
+    <li>En <b>Usuarios</b> pulsa <b>🔑 Clave</b> en la fila de la persona.</li>
+    <li>Escribe la nueva clave dos veces (marca <b>Mostrar claves</b> para verla) y pulsa <b>Guardar clave</b>.</li>
+    <li>Su sesión se cierra en los teléfonos y deberá entrar con la clave nueva.</li>
+  </ol>
+  <figure class="shot"><img src="img/06-panel-clave-usuario.jpg"><figcaption>Cambiar la clave de otro usuario.</figcaption></figure>
+  <h3>Cambiar tu propia clave</h3>
+  <p>En el panel pulsa <b>🔑 Mi clave</b> (arriba a la derecha), escribe la clave actual y la nueva dos veces. En la app: <b>Inicio → 🔑 Mi contraseña</b>.</p>
+  <figure class="shot"><img src="img/07-panel-mi-clave.jpg"><figcaption>Cambiar mi clave.</figcaption></figure>
+</section>
+
+<section>
+  <h2>6. Crear una toma</h2>
+  <ol class="pasos">
+    <li>En la pestaña <b>Tomas</b> del panel elige la <b>Sede</b> en la lista desplegable.</li>
+    <li>Indica la <b>Fecha del conteo</b> y pulsa <b>➕ Crear toma</b>.</li>
+    <li>La toma aparece de inmediato en los teléfonos de las personas asignadas a esa sede.</li>
+  </ol>
+  <figure class="shot"><img src="img/02-panel-nueva-toma.jpg"><figcaption>Selector de sedes al crear la toma.</figcaption></figure>
+  <figure class="shot"><img src="img/18-panel-tomas.jpg"><figcaption>Lista de tomas: estado, inventario cargado, lecturas, personas e Items Facturados.</figcaption></figure>
+</section>
+
+<section>
+  <h2>7. Cargar el inventario (una sola vez)</h2>
+  <p>El Reporte de Inventario se carga desde la <b>app</b>, que también funciona en la PC. Al cargarlo se sube al servidor y todos los teléfonos de la toma lo descargan solos.</p>
+  <ol class="pasos">
+    <li>En Plade exporta el <b>Reporte de Inventario</b> a Excel justo antes de empezar a contar.</li>
+    <li>En el panel pulsa <b>📱 Abrir la app</b> y entra con tu usuario.</li>
+    <li>En “¿Qué toma vas a trabajar?” pulsa <b>Abrir</b> en la toma.</li>
+    <li>En <b>Inicio</b> pulsa <b>📂 Cargar Reporte de Inventario</b> y elige el Excel. La app reconoce el formato de Plade y revisa que la sede y la fecha coincidan con la toma.</li>
+    <li>Verás el archivo, la hora en que se generó y la cantidad de productos, con el aviso <b>“En el servidor central”</b>.</li>
+  </ol>
+  <div class="tels">
+    <figure class="tel"><img src="img/08-app-login.jpg"><figcaption>Entrar a la app.</figcaption></figure>
+    <figure class="tel"><img src="img/09-app-selector-admin.jpg"><figcaption>Elegir la toma.</figcaption></figure>
+    <figure class="tel"><img src="img/10-app-inventario-cargado.jpg"><figcaption>Inventario cargado y subido.</figcaption></figure>
+  </div>
+  <div class="nota">Si reemplazas el inventario, los Items Facturados que ya estaban cargados se borran y hay que volver a cargarlos.</div>
+</section>
+
+<section>
+  <h2>8. Contar desde el teléfono</h2>
+  <ol class="pasos">
+    <li>Abre <code>https://conteos.grupopanaceapremium.com</code> en el teléfono. En Chrome usa <b>⋮ → Instalar app</b> (o “Agregar a pantalla de inicio”) para tenerla como aplicación.</li>
+    <li>Entra con tu usuario. La primera vez necesitas internet; después puedes entrar sin conexión.</li>
+    <li>En <b>Tomas asignadas</b> pulsa <b>Abrir</b>: el teléfono descarga el inventario.</li>
+    <li>En <b>Escanear</b> lee los códigos con el lector o con la cámara 📷. Cada lectura suma 1 (o la cantidad indicada). Marca <b>Escribir la cantidad en cada lectura</b> para teclear cuántas unidades contaste.</li>
+    <li>Si te equivocas usa <b>↶ Deshacer</b>, la ✕ de la lectura o <b>✎ Cantidad</b>.</li>
+  </ol>
+  <div class="tels">
+    <figure class="tel"><img src="img/11-app-selector-inventarista.jpg"><figcaption>El inventarista solo ve sus tomas.</figcaption></figure>
+    <figure class="tel"><img src="img/12-app-escanear.jpg"><figcaption>Escanear y contar.</figcaption></figure>
+    <figure class="tel"><img src="img/13-app-consultar-ciego.jpg"><figcaption>Consultar: la existencia está bloqueada.</figcaption></figure>
+  </div>
+  <h3>Sincronización</h3>
+  <p>El indicador arriba a la derecha muestra el estado: <b>☁ hora</b> = todo subido; <b>⏳ Pendiente</b> = hay lecturas por subir; <b>📴 Sin señal</b> = se guarda en el teléfono y se sube sola al volver la señal. Al tocarlo se sincroniza en el momento.</p>
+  <div class="tip">No hace falta exportar ni enviar el conteo por WhatsApp: el administrador lo recibe automáticamente.</div>
+</section>
+
+<section>
+  <h2>9. Items Facturados y cierre</h2>
+  <ol class="pasos">
+    <li>Cuando todos terminen de contar, exporta de Plade el <b>Items Facturados</b> del día.</li>
+    <li>En la app (administrador o gerente) ve a <b>Cierre</b> y pulsa <b>📂 Cargar Items Facturados</b>. Se sube al servidor.</li>
+    <li>La app descuenta lo vendido durante la toma y muestra el resultado <b>consolidado de todos los teléfonos</b>.</li>
+    <li>Pulsa <b>🔒 Cerrar toma</b>. Con la toma cerrada ya nadie puede contar ni cambiar reportes. También se puede cerrar o reabrir desde el panel.</li>
+  </ol>
+  <div class="tels dos">
+    <figure class="tel"><img src="img/15-app-items-facturados.jpg"><figcaption>Items Facturados cargado y conteo consolidado.</figcaption></figure>
+    <figure class="tel"><img src="img/14-app-cierre-inventarista.jpg"><figcaption>Lo que ve el inventarista: resultados ocultos.</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <h2>10. Ver y descargar resultados</h2>
+  <h3>En la app (Cierre)</h3>
+  <ul>
+    <li><b>⬇ Excel completo</b>: resumen, diferencias por código, resultado completo y todas las lecturas.</li>
+    <li><b>📄 PDF del conteo</b> y <b>📲 Enviar por WhatsApp</b>.</li>
+    <li><b>Ajustes para Plade</b>: archivos de SALIDA (faltantes) y ENTRADA (sobrantes) listos para cargar.</li>
+    <li>Más abajo, la tabla de productos con filtros: Contados, Con diferencia, Faltantes, Sobrantes, No contados…</li>
+  </ul>
+  <div class="tels dos">
+    <figure class="tel"><img src="img/16-app-resultados-exportar.jpg"><figcaption>Botones de descarga, pérdida y factores.</figcaption></figure>
+    <figure class="tel"><img src="img/17-app-tabla-diferencias.jpg"><figcaption>Diferencias por producto.</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <h3 style="margin-top:0">En el panel central</h3>
+  <ol class="pasos">
+    <li>En <b>Tomas</b> pulsa <b>Ver ›</b> en la toma.</li>
+    <li>Verás los totales, quién está contando (lecturas y última subida de cada teléfono) y la tabla de productos con lo que contó cada persona. Se actualiza sola cada 15 segundos.</li>
+    <li>Pulsa <b>⬇ Excel consolidado</b> para descargar un Excel con dos hojas: <b>Consolidado</b> (producto, existencia, contado, diferencia, valor, estado y lo contado por cada persona) y <b>Personas</b>.</li>
+  </ol>
+  <figure class="shot"><img src="img/19-panel-consolidado.jpg"><figcaption>Detalle de la toma con el botón Excel consolidado.</figcaption></figure>
+  <figure class="shot"><img src="img/20-panel-productos.jpg"><figcaption>Productos consolidados, con columna por persona.</figcaption></figure>
+  <p class="mut">Las diferencias del panel son estimadas con el Items Facturados. El cálculo detallado por hora de lectura, los factores y los ajustes para Plade están en la app → Cierre.</p>
+</section>
+
+<section>
+  <h2>11. Problemas frecuentes</h2>
+  <table>
+    <tr><th style="width:36%">Situación</th><th>Qué hacer</th></tr>
+    <tr><td>El teléfono no tiene señal</td><td>Sigue contando: todo se guarda en el teléfono y se sube solo al volver la señal (indicador ⏳ / 📴).</td></tr>
+    <tr><td>“Tu sesión venció”</td><td>Cierra sesión (Inicio → 🔒 Cerrar sesión) y entra de nuevo con internet. No se pierde nada de lo contado.</td></tr>
+    <tr><td>Olvidé mi contraseña</td><td>Pide al administrador que te asigne una nueva desde el panel (Usuarios → 🔑 Clave).</td></tr>
+    <tr><td>No aparece la toma en el teléfono</td><td>Revisa en el panel que la persona tenga asignada esa sede y que la toma esté creada. Luego toca ⇄ Cambiar en la app para recargar la lista.</td></tr>
+    <tr><td>“La toma está cerrada en el servidor”</td><td>Se cerró la toma; las lecturas nuevas no se suben. Si hace falta seguir contando, el administrador la reabre.</td></tr>
+    <tr><td>La PC no abre la página (“no se encontró la dirección”)</td><td>Si usas VPN, reconéctala o desactívala un momento, y en Chrome abre <code>chrome://net-internals/#dns</code> → <b>Clear host cache</b>.</td></tr>
+    <tr><td>Falta una sede</td><td>Agrégala en el panel → Sedes y asígnala a los usuarios.</td></tr>
+  </table>
+</section>
+
+</body>
+</html>

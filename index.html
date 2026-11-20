@@ -823,7 +823,7 @@ function renderProceso() {
 }
 function renderHeader() {
   $("#hdrSede").textContent = TOMA ? [TOMA.sede, fechaISO(TOMA.fecha), S.meta.resp].filter(Boolean).join(" · ") : "Sin toma";
-  const n = S.cnt.log.length;
+  const n = CN().log.length;   // quien consolida ve el total del equipo
   $("#hdrStatus").textContent = !S.inv ? "Sin inventario" : S.cortes.length ? `${n} lecturas · validado` : n ? `${n} lecturas` : "Listo para contar";
 }
 $("#inResp").oninput = e => { S.meta.resp = e.target.value; DB.set("meta", S.meta); renderHeader(); };
