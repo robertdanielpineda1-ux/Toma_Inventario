@@ -401,6 +401,28 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 </dialog>
 
 <!-- Diálogo de cantidad manual -->
+<!-- Código leído que no está en el Reporte de Inventario -->
+<dialog id="dlgNoEnc">
+  <div class="hd" style="background:#a86500">Código no encontrado</div>
+  <div class="bd">
+    <div style="font-size:14px">El código <b id="neCode" style="font-family:ui-monospace,monospace"></b> no está en el Reporte de Inventario.</div>
+    <div class="mut" style="margin-top:4px">Puede ser un <b>código secundario</b> del producto o una lectura equivocada. Busca el producto para confirmar si es el mismo.</div>
+    <div id="neSugBox" hidden>
+      <h3 style="margin:12px 0 2px;font-size:14px;color:var(--pri)">¿Quisiste decir?</h3>
+      <div class="mut">Productos con un código casi igual (una cifra distinta, cifras cambiadas o lectura cortada).</div>
+      <ul class="list buscador" id="neSug"></ul>
+    </div>
+    <h3 style="margin:12px 0 4px;font-size:14px;color:var(--pri)">Buscar por nombre</h3>
+    <input type="search" id="neBuscar" placeholder="🔎 Escribe el nombre (ej. acetaminofen)" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="mut" id="neInfo" style="margin-top:6px"></div>
+    <ul class="list buscador" id="neList"></ul>
+  </div>
+  <div class="ft" style="flex-wrap:wrap">
+    <button class="btn sec" id="neCancel">Descartar lectura</button>
+    <button class="btn" id="neSinInv" style="background:#a86500">No está: contar sin existencia</button>
+  </div>
+</dialog>
+
 <dialog id="dlgQty">
   <div class="hd">Cantidad contada</div>
   <div class="bd">
@@ -474,7 +496,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 <script src="lib/xlsx.bundle.js" defer></script>
 <script>
 "use strict";
-const VERSION = "15.2";
+const VERSION = "15.3";
 // Modo servidor: la app se sirve desde el servidor central (config.js define TI_API). Sin él funciona como antes, solo local.
 try { if (typeof window.TI_API === "string") localStorage.setItem("TI_API", window.TI_API); else window.TI_API = localStorage.getItem("TI_API") || undefined; } catch (e) {}
 const SRV = typeof window.TI_API === "string" && location.protocol.startsWith("http");
@@ -560,6 +582,15 @@ function construirIndice() {
   if (!S.inv) return;
   for (const k in S.inv.items) IDX[k] = k;
   for (const k in S.inv.items) { const b = normBC(S.inv.items[k].bc); if (b) IDX[b] = k; }
+  // Lectores configurados para no enviar el dígito verificador: también se reconoce el código sin él
+  for (const k in S.inv.items) { const d = String(S.inv.items[k].bc || "").replace(/\D/g, "");
+    if ([8, 12, 13, 14].includes(d.length) && checksumOK(d)) { const s = normBC(d.slice(0, -1)); if (s && !IDX[s]) IDX[s] = k; } }
+  aplicarAlias();
+}
+// Códigos que el usuario asoció a un producto (p. ej. un código de barras secundario que no viene en el Reporte de Inventario)
+function aplicarAlias() {
+  const al = (CN() || {}).alias || {};
+  for (const code in al) { const k = al[code] && al[code].k; if (k && (!IDX[code] || IDX[code] === k || String(IDX[code]).startsWith("?"))) IDX[code] = k; }
 }
 // Limpia lo que envían algunos lectores: prefijos AIM (]E0, ]C1, ]Q3…) y caracteres de control
 const limpiarCodigo = v => cellStr(v).replace(/[\x00-\x1F\x7F]/g, "").trim().replace(/^\][A-Za-z][0-9A-Za-z]/, "");
@@ -899,15 +930,76 @@ scanIn.addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); procesarEntrada(scanIn.value); scanIn.value = ""; }
 });
 function procesarEntrada(v, origen) {
-  v = limpiarCodigo(v); if (!v || $("#dlgQty").open) return;
+  v = limpiarCodigo(v); if (!v || $("#dlgQty").open || $("#dlgNoEnc").open) return;
   if (bloqueada()) return;
   const falta = listoParaContar(); if (falta) return toast(falta);
-  const k = claveDe(v);
+  const k = claveDe(v), o = origen || (scanIn.getAttribute("inputmode") === "none" ? "lector" : "teclado");
   const pareceCodigo = !/\s/.test(v) && /\d/.test(v);
-  if (k || pareceCodigo) {
-    contar(k || "?" + normBC(v), v, origen || (scanIn.getAttribute("inputmode") === "none" ? "lector" : "teclado")); return; }
+  if (k) { contar(k, v, o); return; }
+  // Código que no está en el inventario: antes de contarlo como sobrante se pregunta de qué producto se trata
+  if (pareceCodigo) { if (S.inv) abrirNoEncontrado(v, o); else contar("?" + normBC(v), v, o); return; }
   $("#sNombre").value = v; buscarEscanear();
 }
+
+/* ---------- Código no encontrado: sugerir el producto ---------- */
+// Códigos del inventario casi iguales al leído: una cifra distinta, dos cifras vecinas invertidas,
+// una cifra de más o de menos, o una lectura cortada (uno contiene al otro).
+function distCodigo(a, b) {
+  if (a === b) return 0;
+  if (a.length === b.length) {
+    const d = []; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) { d.push(i); if (d.length > 2) return 9; }
+    if (d.length === 1) return 1;
+    if (d.length === 2 && d[1] === d[0] + 1 && a[d[0]] === b[d[1]] && a[d[1]] === b[d[0]]) return 1;
+    return 9;
+  }
+  if (Math.abs(a.length - b.length) === 1) { const [s, l] = a.length < b.length ? [a, b] : [b, a]; for (let i = 0; i < l.length; i++) if (l.slice(0, i) + l.slice(i + 1) === s) return 1; }
+  if (a.length >= 6 && b.length >= 6 && (a.includes(b) || b.includes(a))) return 2;
+  return 9;
+}
+function codigosParecidos(code, lim = 6) {
+  const r = normBC(code), out = new Map(); if (!S.inv || r.length < 4) return [];
+  for (const k in S.inv.items) { const it = S.inv.items[k];
+    for (const c of [normBC(it.bc), normBC(it.cod)]) { if (!c || c.length < 4) continue;
+      const p = distCodigo(r, c); if (p <= 2 && (!out.has(k) || out.get(k) > p)) out.set(k, p); } }
+  return [...out].sort((a, b) => a[1] - b[1]).slice(0, lim).map(x => x[0]);
+}
+let neCtx = null;
+function abrirNoEncontrado(code, origen) {
+  neCtx = {code, origen}; feedback(false);
+  $("#neCode").textContent = code;
+  const sug = codigosParecidos(code);
+  $("#neSugBox").hidden = !sug.length;
+  $("#neSug").innerHTML = sug.map(k => { const it = item(k), c = S.cnt.conteo[k];
+    return `<li data-k="${esc(k)}"><div class="g"><div>${esc(it.desc || it.cod)}</div><small>Código en sistema: <b>${esc(it.bc || it.cod)}</b>${it.cod && it.cod !== it.bc ? " · Cód. " + esc(it.cod) : ""}${c != null ? ` · contado ${fmt(c)}` : ""}</small></div></li>`; }).join("");
+  $("#neSug").querySelectorAll("li[data-k]").forEach(li => li.onclick = () => asociarCodigo(li.dataset.k));
+  $("#neBuscar").value = ""; $("#neInfo").textContent = ""; $("#neList").innerHTML = "";
+  $("#dlgNoEnc").showModal();
+  if (!sug.length) setTimeout(() => $("#neBuscar").focus(), 80);
+}
+const buscarNoEnc = busquedaViva($("#neBuscar"), $("#neInfo"), $("#neList"), k => asociarCodigo(k));
+function cerrarNoEnc() { $("#dlgNoEnc").close(); setTimeout(() => scanIn.focus(), 80); }
+function guardarAlias(n, k) {
+  const c = S.cnt; (c.alias = c.alias || {})[n] = {k, t: Date.now(), us: USER ? USER.u : "", nombre: USER ? USER.nombre : (S.meta.resp || "")};
+  IDX[n] = k; CNCACHE = null;
+}
+function asociarCodigo(k) {
+  if (!neCtx) return;
+  const {code, origen} = neCtx, it = item(k);
+  const nombre = it ? (it.desc || it.cod) : "producto sin existencia en sistema";
+  if (!confirm(`¿El código ${code} es este producto?\n\n${nombre}\nCódigo en sistema: ${it ? (it.bc || it.cod) : k.replace(/^\?/, "")}\n\nSe contará como ese producto y las próximas lecturas de este código se reconocerán solas.`)) return;
+  neCtx = null; cerrarNoEnc();
+  guardarAlias(normBC(code), k);
+  contar(k, code, origen + " · código asociado");
+  toast("Código asociado a " + nombre);
+}
+$("#neSinInv").onclick = () => {
+  if (!neCtx) return;
+  const {code, origen} = neCtx, n = normBC(code); neCtx = null; cerrarNoEnc();
+  guardarAlias(n, "?" + n);   // no vuelve a preguntar por este código
+  contar("?" + n, code, origen);
+};
+$("#neCancel").onclick = () => { neCtx = null; cerrarNoEnc(); toast("Lectura descartada: no se contó"); };
+$("#dlgNoEnc").addEventListener("cancel", () => { neCtx = null; setTimeout(() => scanIn.focus(), 80); });
 // Modo de conteo: +1 (o la cantidad indicada) por lectura, o escribir la cantidad
 const modoManual = () => $("#modoManual").checked;
 function contar(k, bc, origen, despues) {
@@ -1300,6 +1392,13 @@ function aceptarLectura({text, fmt}) {
   text = String(text || "").replace(/[\r\n\t]/g, "").trim(); if (!text) return;
   const now = Date.now(), f = String(fmt || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   if (/^(ean13|ean8|upca)$/.test(f) && !checksumOK(text)) return;
+  // Un código que no está en el inventario suele ser una lectura equivocada de la cámara:
+  // se acepta solo si se lee 3 veces igual. Si mientras tanto se lee el código correcto, se cuenta ese.
+  if (S.inv && $("#tab-consulta").hidden && !claveDe(text) && !(cam.visto[text] && now - cam.visto[text] < 550)) {
+    if (cam.dudoso !== text || now - cam.dudosoT > 3000) { cam.dudoso = text; cam.dudosoT = now; cam.dudosoN = 0; }
+    if (++cam.dudosoN < 3) { $("#camLbl").textContent = `Verificando ${text}… mantén el código a la vista`; return; }
+  }
+  cam.dudoso = "";
   // Mientras el código siga a la vista no se repite; basta apartarlo ~0,5 s para volver a leerlo
   const prev = cam.visto[text];
   if (prev && now - prev < 550) { cam.visto[text] = now; return; }
@@ -1810,6 +1909,12 @@ async function libroResultado() {
     const colsE = [{h: "Fecha y hora", w: 20}, {h: "Código", w: 18}, {h: "Descripción", w: 46, wrap: true}, {h: "Cantidad quitada", w: 12, fmt: FMT.und}, {h: "Lecturas", w: 10, fmt: FMT.und}, {h: "Usuario", w: 20}, {h: "Autorizó", w: 20}];
     X.utils.book_append_sheet(wb, hojaTabla("PRODUCTOS QUITADOS DEL CONTEO (autorizados por un administrador)", subtitulo(), colsE,
       el.map(e => [fechaHora(e.t), e.bc, e.desc, e.cant, e.lect, e.usuario || e.resp, e.autorizo || ""])), "Eliminados");
+  }
+  const al = Object.entries(C.alias || {});
+  if (al.length) {
+    const colsA = [{h: "Fecha y hora", w: 20}, {h: "Código leído", w: 18}, {h: "Asociado a (código en sistema)", w: 20}, {h: "Descripción", w: 46, wrap: true}, {h: "Usuario", w: 20}];
+    X.utils.book_append_sheet(wb, hojaTabla("CÓDIGOS ASOCIADOS DURANTE EL CONTEO (revisar en Plade: códigos secundarios o sin registrar)", subtitulo(), colsA,
+      al.sort((a, b) => a[1].t - b[1].t).map(([code, a]) => { const it = item(a.k); return [fechaHora(a.t), code, it ? (it.bc || it.cod) : "SIN EXISTENCIA", it ? it.desc : "Contado como sin existencia en sistema", a.nombre || a.us || ""]; })), "Códigos asociados");
   }
   X.utils.book_append_sheet(wb, hojaTabla("LECTURAS", subtitulo(), colsL,
     log.map(l => { const it = item(l.k); return [fechaHora(l.t), it ? it.cod : "", l.bc, it ? it.desc : "SIN EXISTENCIA EN SISTEMA", l.q, l.o, l.us || ""]; })), "Lecturas");
@@ -2523,14 +2628,14 @@ function CN() {
   if (!SRV || !USER || !puede("equipo")) return S.cnt;
   const mio = USER.u + "|" + SY.device, otros = Object.keys(EQUIPO).filter(k => k !== mio && EQUIPO[k]).map(k => EQUIPO[k]);
   if (!otros.length) return S.cnt;
-  const clave = [S.cnt.seq, S.cnt.log.length, Object.keys(S.cnt.conteo).length, (S.cnt.elim || []).length, SY.eqVer, TOMA && TOMA.id].join("|");
+  const clave = [S.cnt.seq, S.cnt.log.length, Object.keys(S.cnt.conteo).length, (S.cnt.elim || []).length, Object.keys(S.cnt.alias || {}).length, SY.eqVer, TOMA && TOMA.id].join("|");
   if (CNCACHE && CNCACHE.clave === clave) return CNCACHE.c;
-  const m = {conteo: {...S.cnt.conteo}, log: [...S.cnt.log], raw: {}, elim: [...(S.cnt.elim || [])], seq: S.cnt.seq, last: S.cnt.last};
+  const m = {conteo: {...S.cnt.conteo}, log: [...S.cnt.log], raw: {}, elim: [...(S.cnt.elim || [])], alias: {}, seq: S.cnt.seq, last: S.cnt.last};
   for (const c of otros) {
     for (const k in c.conteo) m.conteo[k] = r3((m.conteo[k] || 0) + (+c.conteo[k] || 0));
-    Object.assign(m.raw, c.raw || {}); for (const l of c.log || []) m.log.push(l); if (c.elim) m.elim.push(...c.elim);
+    Object.assign(m.raw, c.raw || {}); Object.assign(m.alias, c.alias || {}); for (const l of c.log || []) m.log.push(l); if (c.elim) m.elim.push(...c.elim);
   }
-  Object.assign(m.raw, S.cnt.raw); m.log.sort((a, b) => a.t - b.t);
+  Object.assign(m.raw, S.cnt.raw); Object.assign(m.alias, S.cnt.alias || {}); m.log.sort((a, b) => a.t - b.t);
   CNCACHE = {clave, c: m}; return m;
 }
 function adoptarMeta(t) {
@@ -2591,7 +2696,7 @@ async function sincronizar() {
       for (const d of r.data) { EQUIPO[d.u + "|" + d.device] = d.cnt; ec = true; }
       st.eqSince = r.keys.reduce((a, k) => Math.max(a, k.act || 0), st.eqSince || 0);
       st.equipo = r.keys.map(k => ({u: k.u, nombre: k.nombre, lect: k.lect, prod: k.prod, act: k.act}));
-      if (ec) { SY.eqVer++; await DB.set("equipo", EQUIPO); cambio = true; }
+      if (ec) { SY.eqVer++; await DB.set("equipo", EQUIPO); aplicarAlias(); cambio = true; }
     }
     st.ult = Date.now(); SY.err = "";
   } catch (e) {
