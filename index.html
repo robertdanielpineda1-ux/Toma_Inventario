@@ -527,7 +527,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 <script src="lib/xlsx.bundle.js" defer></script>
 <script>
 "use strict";
-const VERSION = "15.5";
+const VERSION = "15.6";
 // Modo servidor: la app se sirve desde el servidor central (config.js define TI_API). Sin él funciona como antes, solo local.
 try { if (typeof window.TI_API === "string") localStorage.setItem("TI_API", window.TI_API); else window.TI_API = localStorage.getItem("TI_API") || undefined; } catch (e) {}
 const SRV = typeof window.TI_API === "string" && location.protocol.startsWith("http");
@@ -909,9 +909,10 @@ $("#btnInv").onclick = async () => {
 $("#btnReset").onclick = async () => {
   if (!TOMA) return;
   if (!await pedirClave("Eliminar toma", `Se eliminará la toma de <b>${esc(TOMA.sede)}</b> del ${fechaISO(TOMA.fecha)}.<br>Autoriza un usuario con permiso para cerrar y eliminar tomas.`, "🗑 Eliminar", "cerrar")) return;
-  if (!confirm(`Se borrará la toma de ${TOMA.sede} del ${fechaISO(TOMA.fecha)}: inventario, conteo y movimientos. ¿Ya exportaste el resultado?`)) return;
+  const t = (await listaTomas()).find(x => x.id === TOMA.id) || TOMA;
+  if (!confirm(avisoBorrar(t))) return;
   if (!confirm("Confirma: ¿eliminar esta toma?")) return;
-  await eliminarToma(TOMA.id); toast("Toma eliminada"); mostrarSelector();
+  if (await borrarTomaCompleta(t)) { toast("Toma eliminada"); mostrarSelector(); }
 };
 $("#btnExpConteo").onclick = async () => {
   const X = await esperarXLSX().catch(e => toast(e.message)); if (!X) return;
@@ -2476,6 +2477,19 @@ function tocarToma() {   // actualiza el resumen de la toma en la lista
     await guardarLista(l);
   }, 400);
 }
+// Elimina la toma. En modo servidor, si existe en el servidor, se borra allí (para todos los teléfonos):
+// si solo se borrara del teléfono, volvería a aparecer al sincronizar.
+async function borrarTomaCompleta(t) {
+  if (SRV && (t.srv || t.id === (TOMA && TOMA.id)) && !t.borrada) {
+    try { await api("tomas/" + encodeURIComponent(t.id), {method: "DELETE", grant: SY.grant}); }
+    catch (e) { if (e.status !== 404) { toast(e.red ? "Necesitas conexión para eliminar la toma del servidor" : e.message); return false; } }
+  }
+  if (TOMA && TOMA.id === t.id) cerrarCamara();
+  await eliminarToma(t.id); return true;
+}
+const avisoBorrar = t => SRV && !t.borrada
+  ? `Se eliminará la toma de ${t.sede} del ${fechaISO(t.fecha)} DEL SERVIDOR, para todos los teléfonos: inventario, movimientos y los conteos de todo el equipo. No se puede deshacer. ¿Ya exportaste el resultado?`
+  : `Se borrará la toma de ${t.sede} del ${fechaISO(t.fecha)}: inventario, conteo y movimientos. ¿Ya exportaste el resultado?`;
 async function eliminarToma(id) {
   const prev = TOMA; TOMA = null; await DB.delPrefix(id + ":"); TOMA = prev && prev.id !== id ? prev : null;
   await guardarLista((await listaTomas()).filter(x => x.id !== id));
@@ -2537,9 +2551,9 @@ async function mostrarSelector() {
   $("#tLista").querySelectorAll("button[data-a]").forEach(b => b.onclick = () => abrirToma(l.find(x => x.id === b.dataset.a)));
   $("#tLista").querySelectorAll("button[data-d]").forEach(b => b.onclick = async () => {
     const t = l.find(x => x.id === b.dataset.d);
-    if (!confirm(`¿Eliminar la toma de ${t.sede} del ${fechaISO(t.fecha)}? Se borran su inventario, conteo y movimientos.`)) return;
+    if (!confirm(avisoBorrar(t))) return;
     if (!await pedirClave("Eliminar toma", `Toma de <b>${esc(t.sede)}</b> del ${fechaISO(t.fecha)}.<br>Autoriza un usuario con permiso para eliminar tomas.`, "🗑 Eliminar", "cerrar")) return;
-    await eliminarToma(t.id); mostrarSelector(); });
+    if (await borrarTomaCompleta(t)) { toast("Toma eliminada"); mostrarSelector(); } });
   $("#selToma").hidden = false;
 }
 $("#tSede").onchange = () => { $("#tSedeOtra").hidden = $("#tSede").value !== "otra"; if (!$("#tSedeOtra").hidden) $("#tSedeOtra").focus(); };
@@ -2744,7 +2758,7 @@ document.addEventListener("visibilitychange", () => {
 const SY = {token: null, device: "", st: {pend: {}}, corriendo: false, otraVez: false, aplicando: false, err: "", grant: null, pwActual: "", eqVer: 0, timer: null};
 let EQUIPO = {};   // "usuario|equipo" → conteo de ese teléfono (solo para quien consolida)
 async function api(ruta, opt = {}) {
-  const h = {"Content-Type": "application/json"}; if (SY.token) h.Authorization = "Bearer " + SY.token;
+  const h = {"Content-Type": "application/json"}; if (SY.token) h.Authorization = "Bearer " + SY.token; if (opt.grant) h["X-Grant"] = opt.grant;
   let body = opt.body !== undefined ? JSON.stringify(opt.body) : undefined;
   if (body && body.length > 30000 && window.CompressionStream) {   // inventarios y conteos grandes viajan comprimidos
     try { body = await new Response(new Blob([body]).stream().pipeThrough(new CompressionStream("gzip"))).blob(); h["Content-Encoding"] = "gzip"; } catch (e) {}

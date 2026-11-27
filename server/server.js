@@ -309,10 +309,12 @@ api.post("/tomas", auth, need("cargar"), (req, res) => {
   }
   req.params.id = id; const t = getToma(req, res); if (t) res.json(tomaPublica(req, t));
 });
-api.delete("/tomas/:id", auth, need("cerrar"), (req, res) => {
+api.delete("/tomas/:id", auth, (req, res) => {
   const t = getToma(req, res); if (!t) return;
+  const g = verificar(req.get("x-grant")), quien = req.perm.cerrar ? req.user.u : g && g.typ === "g" && g.perm === "cerrar" ? g.u : null;
+  if (!quien) return res.status(403).json({ error: "Tu usuario no tiene permiso para eliminar tomas" });
   db.prepare("DELETE FROM tomas WHERE id = ?").run(t.id); invCache.delete(t.id);
-  audit(req.user.u, "eliminó toma", t.id);
+  audit(req.user.u, "eliminó toma", t.id + (quien !== req.user.u ? ` (autorizó ${quien})` : ""));
   res.json({ ok: true });
 });
 
