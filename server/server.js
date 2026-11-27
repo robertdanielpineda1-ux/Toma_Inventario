@@ -240,12 +240,20 @@ function getToma(req, res) {
   if (!accesible(req, t)) { res.status(403).json({ error: "No tienes acceso a esta sede" }); return null; }
   return t;
 }
+// Corte de auditoría: lo reciben quienes recuentan (gerente) o consultan; sin existencia ni diferencias para quien no puede ver existencias
+function auditoriaPara(req, t, m) {
+  if (!("auditoria" in m)) return {};
+  if (!m.auditoria || !(req.perm.cargar || req.perm.exportar || req.perm.cerrar)) return { auditoria: m.auditoria ? undefined : null };
+  if (puedeStock(req, t)) return { auditoria: m.auditoria };
+  const a = m.auditoria;
+  return { auditoria: { ...a, items: (a.items || []).map(i => ({ k: i.k, cod: i.cod, bc: i.bc, desc: i.desc })) } };
+}
 function tomaPublica(req, t) {
   const m = metaDe(t), r = J(t.inv_resumen), stock = puedeStock(req, t), cortes = J(t.cortes) || [];
   const cond = req.perm.equipo ? "" : " AND u = ?", args = req.perm.equipo ? [t.id] : [t.id, req.user.u];
   const c = db.prepare(`SELECT COUNT(DISTINCT u) usuarios, COUNT(*) equipos, COALESCE(SUM(lect), 0) lect, MAX(act) act FROM conteos WHERE toma = ?${cond}`).get(...args);
   return { id: t.id, sede: t.sede, fecha: t.fecha, claves: J(t.claves) || [], creado: t.creado, creado_por: t.creado_por, act: Math.max(t.act || 0, c.act || 0),
-    meta: { cerrada: m.cerrada || null, historial: m.historial || [], tol: m.tol ?? null }, meta_ver: t.meta_ver,
+    meta: { cerrada: m.cerrada || null, historial: m.historial || [], tol: m.tol ?? null, ...auditoriaPara(req, t, m) }, meta_ver: t.meta_ver,
     inv_ver: t.inv_ver, inv_stock: stock, inv: r ? { archivo: r.archivo, t: r.t, n: r.n, empresa: r.empresa, ...(stock ? { unidades: r.unidades } : {}) } : null,
     cortes_ver: puedeCortes(req, t) ? t.cortes_ver : null, n_cortes: cortes.length,
     conteo: { usuarios: c.usuarios, equipos: c.equipos, lect: c.lect } };
@@ -367,6 +375,12 @@ function guardarMeta(req, res, t, nuevo, base, grant) {
     audit(req.user.u, m.cerrada ? "cerró toma" : "reabrió toma", t.id);
   }
   if (nuevo.tol != null && Number(nuevo.tol) > 0 && (puedeDif(req, t) || req.perm.cerrar)) m.tol = Number(nuevo.tol);
+  // Corte de auditoría: lo genera quien ve resultados y existencias (administrador, auditor, gerente con la toma cerrada)
+  if ("auditoria" in nuevo && puedeDif(req, t) && puedeStock(req, t) && (req.perm.exportar || req.perm.cerrar)) {
+    const a = nuevo.auditoria;
+    if (a && Array.isArray(a.items)) { m.auditoria = { ...a, items: a.items.slice(0, 5000) }; audit(req.user.u, "generó corte de auditoría", `${t.id}: ${a.items.length} productos`); }
+    else if (a === null) m.auditoria = null;
+  }
   db.prepare("UPDATE tomas SET meta = ?, meta_ver = ?, act = ? WHERE id = ?").run(JSON.stringify(m), now(), now(), t.id);
   res.json(tomaPublica(req, db.prepare("SELECT * FROM tomas WHERE id = ?").get(t.id)));
 }

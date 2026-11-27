@@ -352,6 +352,25 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
     <div class="sum" id="sum"></div>
   </div>
 
+  <div class="card" id="cardAud" hidden>
+    <h3>🔎 Corte de auditoría</h3>
+    <div class="mut">Selecciona las diferencias relevantes en <b>valores</b> y en <b>unidades</b> contra el <b>teórico inicial</b> (existencia del Reporte de Inventario, sin descontar ventas) para que los gerentes revaliden esos códigos.</div>
+    <div id="audGen">
+      <div class="grid2" style="margin-top:8px">
+        <div><label class="f">Diferencia mínima en $</label><input type="number" id="audV" min="0" step="0.01" inputmode="decimal" value="10"></div>
+        <div><label class="f">Diferencia mínima en unidades</label><input type="number" id="audU" min="0" step="1" inputmode="numeric" value="5"></div>
+      </div>
+      <label class="mut" style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="audNC" style="width:20px;height:20px"> Incluir productos con existencia que no se contaron</label>
+      <div class="mut" id="audPrev" style="margin-bottom:8px"></div>
+      <button class="btn block" id="btnAudGen">🔎 Generar corte de auditoría</button>
+    </div>
+    <div id="audEst" class="status" hidden></div>
+    <div id="audBtns" hidden>
+      <button class="btn block" id="btnAudRec" style="margin-bottom:8px">📋 Recontar códigos del corte</button>
+      <div class="grid2"><button class="btn sec" id="btnAudXls">⬇ Excel auditoría</button><button class="btn sec" id="btnAudPdf">📄 PDF auditoría</button></div>
+    </div>
+  </div>
+
   <div class="card" id="cardAj">
     <h3>Ajustes para Plade</h3>
     <div class="mut">Archivos CSV con el formato de carga de Plade: uno de <b>salida</b> (faltantes) y otro de <b>entrada</b> (sobrantes), por código y con la diferencia definitiva.</div>
@@ -401,6 +420,18 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 </dialog>
 
 <!-- Diálogo de cantidad manual -->
+<!-- Recuento del corte de auditoría -->
+<dialog id="dlgAud">
+  <div class="hd">📋 Recuento de auditoría</div>
+  <div class="bd">
+    <div class="mut" id="audInfo"></div>
+    <input type="search" id="audBuscar" placeholder="🔎 Escanea o busca el producto" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:8px">
+    <div class="chips" id="audChips" style="margin-top:8px"></div>
+    <ul class="list" id="audList"></ul>
+  </div>
+  <div class="ft"><button class="btn" id="audCerrar">Listo</button></div>
+</dialog>
+
 <!-- Código leído que no está en el Reporte de Inventario -->
 <dialog id="dlgNoEnc">
   <div class="hd" style="background:#a86500">Código no encontrado</div>
@@ -496,7 +527,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 <script src="lib/xlsx.bundle.js" defer></script>
 <script>
 "use strict";
-const VERSION = "15.4";
+const VERSION = "15.5";
 // Modo servidor: la app se sirve desde el servidor central (config.js define TI_API). Sin él funciona como antes, solo local.
 try { if (typeof window.TI_API === "string") localStorage.setItem("TI_API", window.TI_API); else window.TI_API = localStorage.getItem("TI_API") || undefined; } catch (e) {}
 const SRV = typeof window.TI_API === "string" && location.protocol.startsWith("http");
@@ -1676,7 +1707,7 @@ async function cerrarOReabrir() {
 $("#btnCerrarToma").onclick = cerrarOReabrir;
 function renderTodo() { renderProceso(); renderScan(); if (!$("#tab-cierre").hidden) renderCierre(); }
 function renderCierre() {
-  renderCortes(); renderEstado();
+  renderCortes(); renderEstado(); renderAuditoria();
   if (!verDif()) return;
   if (!S.inv) { $("#sum").innerHTML = `<div style="grid-column:1/-1" class="mut">Carga el Reporte de Inventario para ver resultados.</div>`;
     $("#tbody").innerHTML = ""; $("#chips").innerHTML = ""; $("#tblInfo").textContent = ""; $("#pendWarn").hidden = true; return; }
@@ -1749,7 +1780,7 @@ function ponerCelda(ws, r, c, v, s) {
 }
 function ampliarRango(ws, r, c) {
   const rg = XLSX.utils.decode_range(ws["!ref"] || "A1:A1");
-  rg.e.r = Math.max(rg.e.r, r); rg.e.c = Math.max(rg.e.c, c); ws["!ref"] = XLSX.utils.encode_range(rg);
+  rg.e.r = Math.max(rg.e.r, r); rg.e.c = Math.max(rg.e.c, c); rg.s.r = Math.min(rg.s.r, r); rg.s.c = Math.min(rg.s.c, c); ws["!ref"] = XLSX.utils.encode_range(rg);
 }
 // Encabezado de hoja: banda con título y subtítulo
 function bandaTitulo(ws, nC, titulo, sub) {
@@ -1781,7 +1812,7 @@ function hojaTabla(titulo, sub, cols, filas, estDe) {
       ponerCelda(ws, r0 + 1 + i, j, v == null ? "" : undefined, s);
     });
   });
-  ampliarRango(ws, r0 + filas.length, nC - 1);
+  ampliarRango(ws, r0 + filas.length, nC - 1); ampliarRango(ws, 0, 0);   // el rango incluye la banda de título (fila 1)
   ws["!cols"] = cols.map(c => ({wch: c.w}));
   ws["!rows"] = [{hpt: 30}, {hpt: 20}, {hpt: 8}, {hpt: 32}];
   ws["!autofilter"] = {ref: X.utils.encode_range({s: {r: r0, c: 0}, e: {r: r0 + Math.max(filas.length, 1), c: nC - 1}})};
@@ -2212,6 +2243,154 @@ async function conBoton(btn, fn) {
 }
 $("#btnExport").onclick = e => conBoton(e.currentTarget, async () => { const n = `Inventario_${base()}.xlsx`; descargar(blobLibro(await libroResultado()), n); toast("Excel descargado"); });
 $("#btnPdf").onclick = e => conBoton(e.currentTarget, async () => { descargar(await pdfDiferencias(), `Reporte_Conteo_${base()}.pdf`); toast("PDF descargado"); });
+
+/* ---------- Corte de auditoría ----------
+   Toma las diferencias relevantes (en $ o en unidades) contra el TEÓRICO INICIAL = existencia del Reporte de Inventario,
+   sin descontar ventas. Los gerentes recuentan esos códigos en la app y queda el resultado para auditoría.
+   S.meta.auditoria = {id, t, por, umbV, umbU, nc, inv:{t, archivo}, items:[{k, cod, bc, desc, s0, contado, dif, costo, valor}]}
+   S.cnt.recuento   = {clave: {q, t, us, nombre, aud}}  (cada teléfono guarda sus recuentos; se suben con el conteo)      */
+const AUD = () => S.meta && S.meta.auditoria && S.meta.auditoria.items ? S.meta.auditoria : null;
+const puedeGenerarAud = () => !!S.inv && verDif() && verStock() && (puede("exportar") || puede("cerrar"));
+const puedeRecontarAud = () => !!AUD() && (puede("cargar") || puede("exportar") || puede("cerrar"));
+function candidatosAuditoria(umbV, umbU, nc) {
+  const out = [];
+  for (const x of calcular()) {
+    const fue = x.t1 != null, s0 = x.noInv ? 0 : (x.s0 || 0);
+    if (!fue && (!nc || x.noInv)) continue;
+    const contado = fue ? x.contado : 0, dif = r3(contado - s0), valor = x.costo != null ? r3(dif * x.costo) : null;
+    if (!dif) continue;
+    if (!(Math.abs(dif) >= umbU || (valor != null && Math.abs(valor) >= umbV))) continue;
+    out.push({k: x.k, cod: x.cod, bc: x.bc, desc: x.desc, s0, contado, dif, costo: x.costo, valor, fue});
+  }
+  return out.sort((a, b) => Math.abs(b.valor || 0) - Math.abs(a.valor || 0) || Math.abs(b.dif) - Math.abs(a.dif));
+}
+const umbralesAud = () => ({umbV: Math.max(0, parseNum($("#audV").value)), umbU: Math.max(0, parseNum($("#audU").value)), nc: $("#audNC").checked});
+function previaAud() {
+  if (!puedeGenerarAud()) return;
+  const {umbV, umbU, nc} = umbralesAud(), l = candidatosAuditoria(umbV, umbU, nc);
+  const v = l.reduce((a, x) => a + Math.abs(x.valor || 0), 0);
+  $("#audPrev").innerHTML = l.length ? `Entrarían <b>${l.length} productos</b> (diferencia ≥ $ ${fmt(umbV)} o ≥ ${fmt(umbU)} und) · $ ${r3(v).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} en diferencias.` : "Ningún producto supera esos umbrales.";
+}
+["#audV", "#audU", "#audNC"].forEach(id => $(id).addEventListener("input", previaAud));
+// Recuentos: los propios y (para quien consolida) los de todo el equipo; el más reciente manda
+function recuentosAud() {
+  const a = AUD(); if (!a) return {};
+  const C = CN(), r = {};
+  for (const [k, v] of Object.entries(C.recuento || {})) if (v && v.aud === a.id && (!r[k] || v.t > r[k].t)) r[k] = v;
+  return r;
+}
+function estadoAud(it, rec) {
+  if (!rec) return {cod: "PEND", txt: "Pendiente", cls: "warn"};
+  if (it.contado == null) return {cod: "REC", txt: "Recontado", cls: "ok"};
+  if (r3(rec.q) === r3(it.contado)) return {cod: "CONF", txt: "Confirma el conteo", cls: "ok"};
+  return {cod: "CORR", txt: `Corregido (antes ${fmt(it.contado)})`, cls: "bad"};
+}
+function renderAuditoria() {
+  const card = $("#cardAud"), a = AUD(), gen = puedeGenerarAud();
+  card.hidden = !S.inv || !(gen || puedeRecontarAud());
+  if (card.hidden) return;
+  $("#audGen").hidden = !gen;
+  if (gen) { if (a && !$("#audV").dataset.ok) { $("#audV").value = a.umbV; $("#audU").value = a.umbU; $("#audNC").checked = !!a.nc; } $("#audV").dataset.ok = 1; previaAud();
+             $("#btnAudGen").textContent = a ? "🔄 Regenerar corte de auditoría" : "🔎 Generar corte de auditoría"; }
+  $("#audEst").hidden = $("#audBtns").hidden = !a;
+  if (!a) return;
+  const rec = recuentosAud(), n = a.items.length, hechos = a.items.filter(i => rec[i.k]).length;
+  const corr = a.items.filter(i => estadoAud(i, rec[i.k]).cod === "CORR").length;
+  $("#audEst").className = "status" + (hechos === n ? " on" : "");
+  $("#audEst").innerHTML = `Corte del ${fechaHora(a.t)} por ${esc(a.por || "")} · <b>${n} productos</b> (≥ $ ${fmt(a.umbV)} o ≥ ${fmt(a.umbU)} und)<br>
+    Recontados: <b>${hechos} de ${n}</b>${hechos ? ` · ${hechos - corr} confirman el conteo · <b style="color:var(--bad)">${corr} corregidos</b>` : ""}`;
+  $("#btnAudXls").hidden = $("#btnAudPdf").hidden = !verDif() || !puede("exportar");
+}
+$("#btnAudGen").onclick = async () => {
+  if (!puedeGenerarAud()) return toast("Tu usuario no puede generar el corte de auditoría");
+  const {umbV, umbU, nc} = umbralesAud(), l = candidatosAuditoria(umbV, umbU, nc);
+  if (!l.length) return toast("Ningún producto supera esos umbrales");
+  if (AUD() && !confirm("Ya hay un corte de auditoría. Al regenerarlo, los recuentos hechos se conservan solo para los productos que sigan en el corte. ¿Continuar?")) return;
+  const prev = AUD();
+  S.meta.auditoria = {id: prev ? prev.id : Date.now(), t: Date.now(), por: USER ? USER.nombre : (S.meta.resp || ""), umbV, umbU, nc,
+    inv: {t: S.inv.t, archivo: S.inv.archivo}, items: l.map(({fue, ...x}) => x)};
+  if (SRV) SY.st.audCambio = true;
+  await DB.set("meta", S.meta); renderAuditoria(); toast(`Corte de auditoría generado: ${l.length} productos para revalidar`);
+};
+// Recuento (lo hace el gerente; también con la toma cerrada, porque no modifica el conteo original)
+let audFiltro = "PEND";
+function abrirRecuento() { if (!puedeRecontarAud()) return; audFiltro = AUD().items.some(i => !recuentosAud()[i.k]) ? "PEND" : "ALL"; $("#audBuscar").value = ""; pintarRecuento(); $("#dlgAud").showModal(); }
+function pintarRecuento() {
+  const a = AUD(); if (!a) return;
+  const rec = recuentosAud(), vs = verStock() && a.items.some(i => i.s0 != null), q = normH($("#audBuscar").value), qc = normBC($("#audBuscar").value);
+  $("#audInfo").innerHTML = `Recuenta cada producto y escribe la cantidad física. ${vs ? "Se compara contra el <b>teórico inicial</b> (Reporte de Inventario de las " + hora(a.inv.t) + ")." : "El resultado lo ve el administrador."}`;
+  const F = {PEND: i => !rec[i.k], HECHO: i => !!rec[i.k], ALL: () => true};
+  const cuenta = f => a.items.filter(F[f]).length;
+  $("#audChips").innerHTML = [["PEND", "Pendientes"], ["HECHO", "Recontados"], ["ALL", "Todos"]].map(([k, l]) => `<button data-f="${k}" class="${audFiltro === k ? "on" : ""}">${l} (${cuenta(k)})</button>`).join("");
+  $("#audChips").querySelectorAll("button").forEach(b => b.onclick = () => { audFiltro = b.dataset.f; pintarRecuento(); });
+  const l = a.items.filter(F[audFiltro]).filter(i => !q || normH(`${i.desc} ${i.cod} ${i.bc}`).includes(q) || (qc && (normBC(i.bc) === qc || normBC(i.cod) === qc || claveDe($("#audBuscar").value) === i.k)));
+  $("#audList").innerHTML = l.length ? l.map(i => { const r = rec[i.k], e = estadoAud(i, r), dR = r && i.s0 != null ? r3(r.q - i.s0) : null;
+    return `<li style="display:block;padding:10px 2px"><div style="font-weight:700">${esc(i.desc)}</div>
+      <small class="mut">${esc(i.bc || i.cod)}${i.cod && i.cod !== i.bc ? " · Cód. " + esc(i.cod) : ""}</small>
+      ${vs ? `<div class="mut" style="margin-top:3px">Teórico inicial <b>${fmt(i.s0)}</b> · Contado <b>${fmt(i.contado)}</b> · Dif. <b style="color:${i.dif < 0 ? "var(--bad)" : "var(--sob)"}">${i.dif > 0 ? "+" : ""}${fmt(i.dif)}</b>${i.valor != null ? ` ($ ${fmt(i.valor)})` : ""}</div>` : ""}
+      <div class="row" style="margin-top:6px"><input type="number" inputmode="decimal" min="0" data-k="${esc(i.k)}" placeholder="Recuento" value="${r ? r.q : ""}" style="flex:1">
+        <button class="btn" data-g="${esc(i.k)}" style="flex:0 0 auto">${r ? "Actualizar" : "Guardar"}</button></div>
+      ${r ? `<div style="margin-top:4px;font-size:13px"><span class="tag" style="background:${e.cls === "bad" ? "#fdeded;color:var(--bad)" : "#eaf6ed;color:var(--ok)"}">${esc(e.txt)}</span>
+        ${vs && dR != null ? ` Dif. contra teórico inicial: <b>${dR > 0 ? "+" : ""}${fmt(dR)}</b>` : ""} <span class="mut">· ${esc(r.nombre || r.us || "")} ${hora(r.t)}</span></div>` : ""}</li>`; }).join("")
+    : `<li class="mut">${audFiltro === "PEND" ? "✅ No quedan productos pendientes." : "Sin productos en este filtro."}</li>`;
+  $("#audList").querySelectorAll("button[data-g]").forEach(b => b.onclick = () => guardarRecuento(b.dataset.g));
+  $("#audList").querySelectorAll("input[data-k]").forEach(i => i.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); guardarRecuento(i.dataset.k); } });
+}
+function guardarRecuento(k) {
+  const a = AUD(), inp = $(`#audList input[data-k="${CSS.escape(k)}"]`), txt = inp ? inp.value.trim() : "";
+  if (txt === "" || parseNum(txt) < 0) return toast("Escribe la cantidad recontada");
+  (S.cnt.recuento = S.cnt.recuento || {})[k] = {q: parseNum(txt), t: Date.now(), us: USER ? USER.u : "", nombre: USER ? USER.nombre : (S.meta.resp || ""), aud: a.id};
+  CNCACHE = null; saveCount(); feedback(true); pintarRecuento(); renderAuditoria();
+  const sig = $("#audList input[data-k]"); if (sig) setTimeout(() => sig.focus(), 60);
+}
+$("#btnAudRec").onclick = abrirRecuento;
+$("#audBuscar").addEventListener("input", pintarRecuento);
+$("#audBuscar").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); pintarRecuento(); const i = $("#audList input[data-k]"); if (i) i.focus(); } });
+$("#audCerrar").onclick = () => { $("#dlgAud").close(); renderAuditoria(); };
+// Reporte de auditoría
+function filasReporteAud() {
+  const a = AUD(), rec = recuentosAud();
+  return a.items.map(i => { const r = rec[i.k], e = estadoAud(i, r), dR = r ? r3(r.q - i.s0) : null;
+    return {i, r, e, dR, vR: r && i.costo != null ? r3(dR * i.costo) : null}; });
+}
+$("#btnAudXls").onclick = e => conBoton(e.currentTarget, async () => {
+  const X = await esperarXLSX(), a = AUD(), f = filasReporteAud(), wb = X.utils.book_new();
+  const cols = [{h: "Código", w: 14}, {h: "Código de barras", w: 17}, {h: "Descripción", w: 44, wrap: true}, {h: "Teórico inicial", w: 11, fmt: FMT.und}, {h: "Contado", w: 10, fmt: FMT.und},
+    {h: "Dif. und", w: 10, fmt: FMT.dif, signo: true}, {h: "Costo", w: 10, fmt: FMT.usd}, {h: "Dif. $", w: 12, fmt: FMT.usd, signo: true},
+    {h: "Recuento", w: 10, fmt: FMT.und}, {h: "Dif. recuento und", w: 12, fmt: FMT.dif, signo: true}, {h: "Dif. recuento $", w: 13, fmt: FMT.usd, signo: true},
+    {h: "Resultado", w: 24}, {h: "Recontó", w: 18}, {h: "Hora recuento", w: 18}];
+  const sub = `${subtitulo()}   ·   Teórico inicial = Reporte de Inventario de las ${hora(a.inv.t)} (sin descontar ventas)   ·   Umbral: ≥ $ ${fmt(a.umbV)} o ≥ ${fmt(a.umbU)} und`;
+  X.utils.book_append_sheet(wb, hojaTabla(`CORTE DE AUDITORÍA · ${f.length} productos · generado ${fechaHora(a.t)} por ${a.por || ""}`, sub, cols,
+    f.map(({i, r, e, dR, vR}) => [i.cod, i.bc, i.desc, i.s0, i.contado, i.dif, i.costo, i.valor, r ? r.q : null, dR, vR, e.txt, r ? (r.nombre || r.us) : "", r ? fechaHora(r.t) : ""]),
+    n => ({PEND: "NO_CONTADO", CONF: "OK", CORR: "FALTANTE", REC: "OK"})[f[n].e.cod]), "Auditoría");
+  descargar(blobLibro(wb), `Auditoria_${base()}.xlsx`); toast("Excel de auditoría descargado");
+});
+$("#btnAudPdf").onclick = e => conBoton(e.currentTarget, async () => {
+  await cargarPDF();
+  const {jsPDF} = window.jspdf, doc = new jsPDF({unit: "pt", format: "letter", orientation: "landscape"}), a = AUD(), f = filasReporteAud();
+  const W = doc.internal.pageSize.getWidth(), M = 30, txt = s => String(s ?? "").replace(/[−–—]/g, "-").replace(/[^\x20-\xFF\n]/g, "");
+  const sig = n => n == null ? "" : (n > 0 ? "+" : "") + fmt(n), usd = n => n == null ? "" : "$ " + r3(n).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  doc.setFillColor(15, 76, 92); doc.rect(0, 0, W, 64, "F"); doc.setFillColor(255, 209, 102); doc.rect(0, 64, W, 3, "F");
+  doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(17); doc.text("Corte de auditoria", M, 30);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.text(txt(`${S.meta.sede || ""} · Conteo del ${TOMA ? fechaISO(TOMA.fecha) : ""}`), M, 48);
+  doc.text(txt(`Generado ${fechaHora(a.t)} por ${a.por || ""}`), W - M, 30, {align: "right"});
+  doc.text(txt(`${f.length} productos · umbral >= $ ${fmt(a.umbV)} o >= ${fmt(a.umbU)} und`), W - M, 48, {align: "right"});
+  doc.setTextColor(60); doc.setFontSize(9);
+  const hechos = f.filter(x => x.r).length, corr = f.filter(x => x.e.cod === "CORR").length;
+  doc.text(txt(`Teorico inicial = existencia del Reporte de Inventario de las ${hora(a.inv.t)} (${a.inv.archivo || ""}), sin descontar ventas.   Recontados: ${hechos} de ${f.length} · corregidos: ${corr}`), M, 84);
+  doc.autoTable({startY: 94, margin: {left: M, right: M}, theme: "grid",
+    head: [["Codigo / Barra", "Descripcion", "Teorico inicial", "Contado", "Dif. und", "Dif. $", "Recuento", "Dif. recuento", "Resultado", "Firma / observacion"]],
+    body: f.map(({i, r, e, dR}) => [txt(`${i.bc || i.cod}${i.cod && i.cod !== i.bc ? "\n" + i.cod : ""}`), txt(i.desc), fmt(i.s0), fmt(i.contado), sig(i.dif), usd(i.valor),
+      r ? fmt(r.q) : "", r ? sig(dR) : "", txt(r ? e.txt + "\n" + (r.nombre || r.us || "") + " " + hora(r.t) : ""), ""]),
+    styles: {fontSize: 8, cellPadding: 4, valign: "middle", lineColor: [213, 221, 227]}, headStyles: {fillColor: [15, 76, 92], textColor: 255, fontStyle: "bold"},
+    columnStyles: {0: {cellWidth: 86}, 1: {cellWidth: 170}, 2: {halign: "right"}, 3: {halign: "right"}, 4: {halign: "right", fontStyle: "bold"}, 5: {halign: "right"}, 6: {halign: "right", cellWidth: 56}, 7: {halign: "right"}, 9: {cellWidth: 100}},
+    didParseCell: d => { if (d.section !== "body") return; const x = f[d.row.index];
+      if (d.column.index === 4 || d.column.index === 5) d.cell.styles.textColor = x.i.dif < 0 ? [198, 40, 40] : [21, 101, 192];
+      if (d.column.index === 8 && x.r) d.cell.styles.textColor = x.e.cod === "CORR" ? [198, 40, 40] : [30, 142, 62]; }});
+  const n = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= n; p++) { doc.setPage(p); doc.setFontSize(8); doc.setTextColor(120); doc.text(`Pagina ${p} de ${n}`, W - M, doc.internal.pageSize.getHeight() - 14, {align: "right"}); }
+  descargar(doc.output("blob"), `Auditoria_${base()}.pdf`); toast("PDF de auditoría descargado");
+});
 // Resumen en texto para el mensaje de WhatsApp
 function textoResumen() {
   const r = resumen(calcular()), F = r.factor.c, ef = evaluarFactor(F.fU), ev = evaluarFactor(F.fV), usd = v => "$ " + montoTxt(v);
@@ -2630,19 +2809,19 @@ function CN() {
   if (!SRV || !USER || !puede("equipo")) return S.cnt;
   const mio = USER.u + "|" + SY.device, otros = Object.keys(EQUIPO).filter(k => k !== mio && EQUIPO[k]).map(k => EQUIPO[k]);
   if (!otros.length) return S.cnt;
-  const clave = [S.cnt.seq, S.cnt.log.length, Object.keys(S.cnt.conteo).length, (S.cnt.elim || []).length, Object.keys(S.cnt.alias || {}).length, SY.eqVer, TOMA && TOMA.id].join("|");
+  const clave = [S.cnt.seq, S.cnt.log.length, Object.keys(S.cnt.conteo).length, (S.cnt.elim || []).length, Object.keys(S.cnt.alias || {}).length, JSON.stringify(S.cnt.recuento || {}).length, SY.eqVer, TOMA && TOMA.id].join("|");
   if (CNCACHE && CNCACHE.clave === clave) return CNCACHE.c;
-  const m = {conteo: {...S.cnt.conteo}, log: [...S.cnt.log], raw: {}, elim: [...(S.cnt.elim || [])], alias: {}, seq: S.cnt.seq, last: S.cnt.last};
+  const m = {conteo: {...S.cnt.conteo}, log: [...S.cnt.log], raw: {}, elim: [...(S.cnt.elim || [])], alias: {}, recuento: {}, seq: S.cnt.seq, last: S.cnt.last};
   for (const c of otros) {
     for (const k in c.conteo) m.conteo[k] = r3((m.conteo[k] || 0) + (+c.conteo[k] || 0));
-    Object.assign(m.raw, c.raw || {}); Object.assign(m.alias, c.alias || {}); for (const l of c.log || []) m.log.push(l); if (c.elim) m.elim.push(...c.elim);
+    Object.assign(m.raw, c.raw || {}); Object.assign(m.alias, c.alias || {}); for (const [k, v] of Object.entries(c.recuento || {})) if (!m.recuento[k] || v.t > m.recuento[k].t) m.recuento[k] = v; for (const l of c.log || []) m.log.push(l); if (c.elim) m.elim.push(...c.elim);
   }
-  Object.assign(m.raw, S.cnt.raw); Object.assign(m.alias, S.cnt.alias || {}); m.log.sort((a, b) => a.t - b.t);
+  Object.assign(m.raw, S.cnt.raw); Object.assign(m.alias, S.cnt.alias || {}); for (const [k, v] of Object.entries(S.cnt.recuento || {})) if (!m.recuento[k] || v.t >= m.recuento[k].t) m.recuento[k] = v; m.log.sort((a, b) => a.t - b.t);
   CNCACHE = {clave, c: m}; return m;
 }
 function adoptarMeta(t) {
   const m = t.meta || {};
-  S.meta = {...S.meta, cerrada: m.cerrada || null, historial: m.historial || [], ...(m.tol != null ? {tol: m.tol} : {})};
+  S.meta = {...S.meta, cerrada: m.cerrada || null, historial: m.historial || [], ...(m.tol != null ? {tol: m.tol} : {}), ...("auditoria" in m && !SY.st.audCambio ? {auditoria: m.auditoria} : {})};
   SY.st.meta_ver = t.meta_ver; if (!m.cerrada) SY.st.bloq = false;
   return DB.set("meta", S.meta);
 }
@@ -2666,12 +2845,12 @@ async function sincronizar() {
         catch (e) { if (e.status !== 409 && e.status !== 423) throw e; toast("⚠ " + e.message); st.cortes_ver = -1; } }
       hecho("cortes", v); }
     if (st.pend.meta) { const v = st.pend.meta;
-      try { const t = await api(ruta + "/meta", {method: "PUT", body: {meta: {cerrada: S.meta.cerrada || null, historial: S.meta.historial || [], tol: S.meta.tol}, base: st.meta_ver, grant: st.grant}});
-            SY.aplicando = true; await adoptarMeta(t); SY.aplicando = false; }
+      try { const t = await api(ruta + "/meta", {method: "PUT", body: {meta: {cerrada: S.meta.cerrada || null, historial: S.meta.historial || [], tol: S.meta.tol, ...(st.audCambio ? {auditoria: S.meta.auditoria || null} : {})}, base: st.meta_ver, grant: st.grant}});
+            SY.aplicando = true; await adoptarMeta(t); SY.aplicando = false; st.audCambio = false; }
       catch (e) { if (![403, 409, 423].includes(e.status)) throw e; toast("⚠ " + e.message + ". Se usa el estado del servidor.");
             if (e.data && e.data.toma) { SY.aplicando = true; await adoptarMeta(e.data.toma); SY.aplicando = false; cambio = true; } }
       st.grant = null; hecho("meta", v); }
-    if (st.pend.cnt && !st.bloq && !S.cnt.log.length && !st.cntSubido) delete st.pend.cnt;   // nada contado aún: no se sube
+    if (st.pend.cnt && !st.bloq && !S.cnt.log.length && !Object.keys(S.cnt.recuento || {}).length && !Object.keys(S.cnt.alias || {}).length && !st.cntSubido) delete st.pend.cnt;   // nada contado ni recontado aún: no se sube
     if (st.pend.cnt && !st.bloq) { const v = st.pend.cnt;
       try { await api(ruta + "/conteo", {method: "PUT", body: {device: SY.device, cnt: S.cnt}, timeout: 120000}); hecho("cnt", v); st.cntSubido = Date.now(); }
       catch (e) { if (e.status !== 423) throw e; st.bloq = true; toast("🔒 " + e.message); } }
@@ -2679,6 +2858,9 @@ async function sincronizar() {
     // 2) Bajar lo nuevo
     const t = await api(ruta); if (!misma()) return;
     if (t.meta_ver !== st.meta_ver && !st.pend.meta) { SY.aplicando = true; await adoptarMeta(t); SY.aplicando = false; cambio = true; }
+    // El corte de auditoría siempre como lo entrega el servidor a ESTE usuario (sin existencias si no puede verlas)
+    else if (!st.audCambio && !st.pend.meta && JSON.stringify(t.meta.auditoria ?? null) !== JSON.stringify(S.meta.auditoria ?? null)) {
+      S.meta.auditoria = t.meta.auditoria ?? null; SY.aplicando = true; await DB.set("meta", S.meta); SY.aplicando = false; cambio = true; }
     if (t.inv_ver && !st.pend.inv && (t.inv_ver !== st.inv_ver || t.inv_stock !== !!st.inv_stock || !S.inv)) {
       pintarSync(); const r = await api(ruta + "/inv", {timeout: 180000}); if (!misma()) return;
       const reemplazo = !!S.inv && S.inv.archivo !== r.inv.archivo;
