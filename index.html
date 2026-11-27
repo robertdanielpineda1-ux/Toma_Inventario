@@ -381,7 +381,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
       existencia del Reporte de Inventario + movimientos (ventas, entradas, devoluciones) ocurridos entre la hora del inventario y la hora en que se contó.
       Ej.: inventario 8:00 = 10 · se cuenta a las 9:00 = 10 · se vende 1 a las 10:30 → teórico a las 9:00 = 10 → <b>cuadra</b> (la venta posterior no cuenta).<br>
       Si un producto se contó en varias lecturas y hubo movimientos entre la primera y la última, el teórico es el rango de saldos en ese lapso y la diferencia es la mínima comprobada.<br>
-      <b>Vend.</b> = salida neta durante la toma. Productos contados después del último movimiento cargado quedan "sin validar" hasta cargar un reporte más reciente.</div>
+      <b>Vend.</b> = solo lo vendido que <b>afecta</b> al producto: lo que salió antes de contarlo (o mientras se contaba). Lo vendido después de contarlo no se muestra porque no cambia el resultado. Productos contados después del último movimiento cargado quedan "sin validar" hasta cargar un reporte más reciente.</div>
   </div>
 </section>
 </main>
@@ -496,7 +496,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 <script src="lib/xlsx.bundle.js" defer></script>
 <script>
 "use strict";
-const VERSION = "15.3";
+const VERSION = "15.4";
 // Modo servidor: la app se sirve desde el servidor central (config.js define TI_API). Sin él funciona como antes, solo local.
 try { if (typeof window.TI_API === "string") localStorage.setItem("TI_API", window.TI_API); else window.TI_API = localStorage.getItem("TI_API") || undefined; } catch (e) {}
 const SRV = typeof window.TI_API === "string" && location.protocol.startsWith("http");
@@ -803,6 +803,7 @@ function teoricoEn(s0, lista, t) {
   return r3(v);
 }
 const ultimoRep = () => S.cortes[S.cortes.length - 1];
+const esMovRep = () => S.cortes.some(c => c.tipoRep === "mov");
 const nombreRep = c => c && c.tipoRep === "mov" ? "Movimiento de Inventario" : "Items Facturados";
 // (Formato anterior) Vendido desde el Reporte de Inventario hasta el momento del Items Facturados.
 // Con la existencia actual de Plade: inicial − actual (no le afectan las ventas hechas antes del inventario).
@@ -1229,7 +1230,7 @@ function ficha(k, x) {
       <div><b style="color:var(--pri)">${fmt(contado)}</b><span>Contado físico${lect.length ? ` · ${lect.length} lect.` : fue ? "" : " (aún no contado)"}</span></div>
       <div><b class="${vd ? cls : ""}">${!vd ? "🔒" : fue ? (dif > 0 ? "+" : "") + fmt(dif) : "—"}</b><span>${!vd ? "Diferencia oculta" : fue ? (val ? "Diferencia validada" : "Diferencia preliminar") : "Diferencia (al contar)"}</span></div>
     </div>
-    <div class="pie"><span>${vd && x && fue ? `<span class="est ${x.est}">${esc(est)}</span> ` : ""}${vd && val && x && x.vTotal ? `Vendido en la toma: ${fmt(x.vTotal)} · teórico ${rango(x)}` : ""}${ult ? ` · Última lectura ${hora(ult)}` : ""}</span>
+    <div class="pie"><span>${vd && x && fue ? `<span class="est ${x.est}">${esc(est)}</span> ` : ""}${vd && val && x && x.vTotal ? `${esMovRep() ? "Vendido antes de contarlo" : "Vendido en la toma"}: ${fmt(x.vTotal)} · teórico ${rango(x)}` : ""}${ult ? ` · Última lectura ${hora(ult)}` : ""}</span>
       <span style="display:flex;gap:6px;flex:0 0 auto">${cerrada() ? "🔒" : `${fue ? `<button class="btn danger" data-del="${esc(k)}" title="Quitar del conteo">🗑</button>` : ""}<button class="btn sec" data-k="${esc(k)}">➕ Contar</button>`}</span></div></div>`;
 }
 // Conecta los botones de una ficha (Contar / Quitar del conteo)
@@ -1476,7 +1477,7 @@ $("#btnCorte").onclick = async () => {
   if (ultLect > v.t && !confirm(`Hay lecturas posteriores a la hora de este reporte (${hora(v.t)}). Si ya terminaron de contar, conviene exportar uno nuevo. ¿Cargarlo igual?`)) return;
   v.id = Date.now(); S.cortes.push(v); S.cortes.sort((a, b) => a.t - b.t);
   await DB.set("cortes", S.cortes); tocarToma(); renderCierre(); renderHeader();
-  toast(esMov ? `Movimiento de Inventario cargado: ${v.n} movimientos hasta las ${hora(v.hasta)} · ${fmt(v.vend)} und de salida neta durante la toma`
+  toast(esMov ? `Movimiento de Inventario cargado: ${v.n} movimientos hasta las ${hora(v.hasta)}. Solo cuenta lo vendido antes de contar cada producto.`
               : `Items Facturados de las ${hora(v.t)} cargado: ${fmt(v.vend)} und vendidas durante la toma`);
 };
 function renderCortes() {
@@ -1484,7 +1485,7 @@ function renderCortes() {
   if (!S.inv) { ul.innerHTML = `<li class="mut">Carga primero el Reporte de Inventario.</li>`; return; }
   const ini = `<li><div class="g"><div>${hora(S.inv.t)} · Inicio</div><small>Reporte de Inventario · ${fmt(S.inv.unidades)} und</small></div></li>`;
   ul.innerHTML = ini + (S.cortes.length ? S.cortes.map((c, i) => c.tipoRep === "mov"
-      ? `<li><div class="g"><div>${hora(c.t)} · Movimiento de Inventario</div><small>${c.n.toLocaleString("es-VE")} movimientos de ${hora(c.desde)} a ${hora(c.hasta)} · ${fmt(c.vend)} und de salida neta durante la toma${c.sinMatch.length ? ` · ${c.sinMatch.length} de productos que no estaban en el inventario` : ""}${c.anuladas ? ` · ${c.anuladas} anulados omitidos` : ""}${c.sinHora ? ` · ⚠ ${c.sinHora} sin hora` : ""}</small></div><button data-id="${c.id}">✕</button></li>`
+      ? `<li><div class="g"><div>${hora(c.t)} · Movimiento de Inventario</div><small>${c.n.toLocaleString("es-VE")} movimientos de ${hora(c.desde)} a ${hora(c.hasta)}${c.sinMatch.length ? ` · ${c.sinMatch.length} de productos que no estaban en el inventario` : ""}${c.anuladas ? ` · ${c.anuladas} anulados omitidos` : ""}${c.sinHora ? ` · ⚠ ${c.sinHora} sin hora` : ""}</small></div><button data-id="${c.id}">✕</button></li>`
       : `<li><div class="g"><div>${hora(c.t)} · Items Facturados${i === S.cortes.length - 1 ? " (final)" : ""}</div><small>${fmt(c.vend)} und vendidas durante la toma${c.sinMatch.length ? ` · ${c.sinMatch.length} productos vendidos que no estaban en el inventario` : ""}</small></div><button data-id="${c.id}">✕</button></li>`).join("")
     : `<li class="mut">Aún no se ha cargado. Los resultados son preliminares (sin descontar ventas).</li>`);
   ul.querySelectorAll("button").forEach(b => b.onclick = async () => {
@@ -1553,7 +1554,7 @@ function calcularPorMovimientos() {
                const sm = SIN_INV()[k.replace(/^\?/, "")]; if (sm) { x.desc = sm.desc; x.cod = sm.cod; if (sm.costo != null) x.costo = sm.costo; } }
     else {
       const sFin = teoricoEn(x.s0, mv, cubre);
-      x.vTotal = r3(x.s0 - sFin);                                         // salida neta durante la toma (hasta el último movimiento cargado)
+      x.vTotal = r3(x.s0 - sFin);                                         // no contado: todo lo que salió durante la toma afecta su teórico
       if (!fue) {
         x.teoMin = x.teoMax = sFin;
         if (sFin > 0) { x.est = "NO_CONTADO"; x.dif = -sFin; } else x.est = "SIN_EXISTENCIA";
@@ -1564,6 +1565,7 @@ function calcularPorMovimientos() {
         x.teoMin = lo; x.teoMax = hi; x.nMov = enVentana.length;
         x.vAntes = r3(x.s0 - teoricoEn(x.s0, mv, a));                    // salida neta entre el inventario y la 1.ª lectura
         x.vVentana = r3(-enVentana.reduce((s, m) => s + m.q, 0));         // salida neta mientras se contaba el producto
+        x.vTotal = r3(x.vAntes + x.vVentana);                             // solo lo que afecta: lo vendido DESPUÉS de contarlo no se muestra
         x.corteA = a; x.corteB = cubre || null; x.pend = b > cubre;       // lecturas posteriores al último movimiento cargado
         const dA = r3(contado - hi), dB = r3(contado - lo);
         if (dA <= 0 && dB >= 0) { x.dif = 0; x.est = enVentana.length && lo !== hi ? "OK_VENTA" : "OK"; }
@@ -1702,7 +1704,7 @@ function renderCierre() {
     <div class="fa"><b>${r.FALTANTE}</b><span>Faltantes · ${fmt(r.uFal)} und</span></div>
     <div class="so"><b>${r.SOBRANTE}</b><span>Sobrantes · ${fmt(r.uSob)} und${r.noInv ? ` (${r.noInv} sin existencia en sistema)` : ""}</span></div>
     <div class="nc"><b>${r.NO_CONTADO}</b><span>Con existencia sin contar · ${fmt(r.uNC)} und${$$(r.vNC)}</span></div>
-    <div><b>${S.cortes.length ? fmt(r.vend) : "—"}</b><span>Unidades vendidas durante la toma</span></div>
+    <div><b>${S.cortes.length ? fmt(r.vend) : "—"}</b><span>${esMovRep() ? "Unidades vendidas que afectan el conteo (antes de contar cada producto)" : "Unidades vendidas durante la toma"}</span></div>
     <div><b>${r.contados ? Math.round((r.OK + r.OK_VENTA) / r.contados * 100) : 0}%</b><span>Exactitud de lo contado (${r.contados} productos)</span></div>`;
   renderAjustes();
   const it = $("#inTol");
@@ -1726,7 +1728,7 @@ function renderTabla() {
   $("#tblInfo").textContent = v.length > LIM ? `Mostrando ${LIM} de ${v.length.toLocaleString("es-VE")} (el Excel trae todos)` : `${v.length.toLocaleString("es-VE")} productos`;
   $("#tbody").innerHTML = v.slice(0, LIM).map(x => `<tr data-k="${esc(x.k)}">
     <td><div>${esc(x.desc)}</div><small>${esc(x.bc || x.cod)}${x.t2 ? " · " + hora(x.t2) : ""}</small><br><span class="est ${x.est}">${ESTADOS[x.est]}</span>${x.noInv || x.s0 === 0 ? ` <span class="est NO_REGISTRADO">sin existencia en sistema</span>` : ""}${x.pend ? ` <span class="est PEND">sin validar</span>` : ""}</td>
-    <td>${fmt(x.s0)}</td><td>${fmt(x.vTotal)}</td><td>${rango(x)}</td>
+    <td>${fmt(x.s0)}</td><td>${x.vTotal ? fmt(x.vTotal) : ""}</td><td>${rango(x)}</td>
     <td><b>${fmt(x.contado)}</b></td><td class="${x.dif < 0 ? "neg" : x.dif > 0 ? "pos" : "zero"}">${x.dif > 0 ? "+" : ""}${fmt(x.dif)}</td></tr>`).join("");
   // tocar una fila abre su ficha en Consultar (para revisar, recontar o quitar del conteo)
   $("#tbody").querySelectorAll("tr[data-k]").forEach(tr => tr.onclick = () => { irA("consulta"); mostrarFicha(tr.dataset.k); });
@@ -1788,7 +1790,7 @@ function hojaTabla(titulo, sub, cols, filas, estDe) {
 const COLS_RES = [
   {h: "Código", w: 16}, {h: "Código de barras", w: 16}, {h: "Descripción", w: 46, wrap: true},
   {h: "Inventario inicial", w: 11, fmt: FMT.und}, {h: "Vendido antes del conteo", w: 11, fmt: FMT.und}, {h: "Vendido durante el conteo", w: 11, fmt: FMT.und},
-  {h: "Vendido total en la toma", w: 11, fmt: FMT.und}, {h: "Teórico mín.", w: 10, fmt: FMT.und}, {h: "Teórico máx.", w: 10, fmt: FMT.und},
+  {h: "Vendido que afecta (total)", w: 11, fmt: FMT.und}, {h: "Teórico mín.", w: 10, fmt: FMT.und}, {h: "Teórico máx.", w: 10, fmt: FMT.und},
   {h: "Contado", w: 10, fmt: FMT.und, bold: true}, {h: "Diferencia", w: 11, fmt: FMT.dif, signo: true}, {h: "Estado", w: 24, estado: true, wrap: true},
   {h: "Primera lectura", w: 18}, {h: "Última lectura", w: 18}, {h: "Costo unit.", w: 11, fmt: FMT.usd}, {h: "Valor diferencia", w: 13, fmt: FMT.usd, signo: true}];
 const filaRes = x => [x.cod, x.bc, x.desc, x.s0, x.vAntes, x.vVentana, x.vTotal, x.teoMin, x.teoMax, x.contado, x.dif,
@@ -1833,7 +1835,7 @@ async function libroResultado() {
     ["Sobrantes", r.SOBRANTE, r3(r.uSob), r.conCosto ? r3(r.vSob) : null, COL.sob, "EAF1FC"],
     ["   contados sin existencia en sistema", r.noInv || 0, null, null, COL.mut, null],
     ["Con existencia sin contar", r.NO_CONTADO, -r3(r.uNC), r.conCosto ? -r3(r.vNC) : null, COL.warn, "FFF6E6"],
-    ["Vendido durante la toma", null, val ? r3(r.vend) : null, null, COL.tx, null],
+    [esMovRep() ? "Vendido que afecta el conteo" : "Vendido durante la toma", null, val ? r3(r.vend) : null, null, COL.tx, null],
     ["Exactitud de lo contado", r.contados ? (r.OK + r.OK_VENTA) / r.contados : 0, null, null, COL.pri, null]];
   for (const [n, p, u, v, color, fill] of kpis) {
     const base = {border: BRD, alignment: {vertical: "center"}, ...(fill ? {fill: {fgColor: {rgb: fill}}} : {})};
@@ -1920,9 +1922,9 @@ async function libroResultado() {
     log.map(l => { const it = item(l.k); return [fechaHora(l.t), it ? it.cod : "", l.bc, it ? it.desc : "SIN EXISTENCIA EN SISTEMA", l.q, l.o, l.us || ""]; })), "Lecturas");
 
   // --- Reportes ---
-  const colsR = [{h: "Generado", w: 22}, {h: "Reporte", w: 22}, {h: "Archivo", w: 46}, {h: "Unidades vendidas en el día", w: 16, fmt: FMT.und}, {h: "Vendido durante la toma", w: 16, fmt: FMT.und}];
+  const colsR = [{h: "Generado", w: 22}, {h: "Reporte", w: 22}, {h: "Archivo", w: 46}, {h: "Unidades vendidas en el día", w: 16, fmt: FMT.und}, {h: "Vendido durante la toma (formato anterior)", w: 16, fmt: FMT.und}];
   X.utils.book_append_sheet(wb, hojaTabla("REPORTES DE PLADE USADOS", subtitulo(), colsR,
-    [[fechaHora(S.inv.t), "Reporte de Inventario", S.inv.archivo, null, null], ...S.cortes.map(c => [fechaHora(c.t), nombreRep(c), c.archivo, c.total, c.vend])]), "Reportes");
+    [[fechaHora(S.inv.t), "Reporte de Inventario", S.inv.archivo, null, null], ...S.cortes.map(c => [fechaHora(c.t), nombreRep(c), c.archivo, c.total, c.tipoRep === "mov" ? null : c.vend])]), "Reportes");
   return wb;
 }
 
@@ -1973,7 +1975,7 @@ async function pdfDiferencias() {
     ["FALTANTES", String(r.FALTANTE), `${fmt(r.uFal)} und faltantes`, COL.bad, "FDEDED"],
     ["SOBRANTES", String(r.SOBRANTE), `${fmt(r.uSob)} und sobrantes`, COL.sob, "EAF1FC"],
     ["CUADRAN", String(r.OK + r.OK_VENTA), `de ${r.contados} productos contados`, COL.ok, "EAF6ED"],
-    ["EXACTITUD", `${r.contados ? Math.round((r.OK + r.OK_VENTA) / r.contados * 100) : 0}%`, val ? `${fmt(r.vend)} und vendidas en la toma` : "sin validar ventas", COL.pri, "EEF3F5"]];
+    ["EXACTITUD", `${r.contados ? Math.round((r.OK + r.OK_VENTA) / r.contados * 100) : 0}%`, val ? `${fmt(r.vend)} und vendidas ${esMovRep() ? "que afectan el conteo" : "en la toma"}` : "sin validar ventas", COL.pri, "EEF3F5"]];
   cards.forEach(([t, n, s, c, f], i) => {
     const x = M + i * (kw + gap);
     doc.setFillColor(...RGB(f)); doc.roundedRect(x, y, kw, kh, 6, 6, "F");

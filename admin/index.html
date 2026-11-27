@@ -342,6 +342,8 @@ function evaluar(x, d) {
   // Con Items Facturados (formato anterior): rango entre la existencia final y la inicial.
   if (!d.stock) { x.est = x.contado != null ? "CONTADO" : "NO_CONTADO"; x.dif = null; return x; }
   const s0 = x.stock || 0, fin = x.final != null ? x.final : s0;
+  // Vendido que afecta: inicial − saldo a la hora del conteo (si no se contó, hasta el último movimiento). Lo vendido después de contarlo no se muestra.
+  if (d.corte && d.corte.mov) x.vend = r3(s0 - (x.tmin != null ? Math.min(x.tmin, x.tmax) : fin));
   let lo = Math.min(s0, fin), hi = Math.max(s0, fin);
   if (x.tmin != null) { lo = x.tmin; hi = x.tmax; } else if (d.corte && d.corte.mov) { lo = hi = fin; }
   x.teo = lo === hi ? fmt(hi) : `${fmt(lo)}–${fmt(hi)}`;
@@ -404,12 +406,12 @@ function pintarTabla() {
   $("#dChips").innerHTML = CHIPS().map(([k, l]) => `<button data-f="${k}" class="${FILTRO === k ? "on" : ""}">${l} (${fmt(D.filas.filter(FILTROS[k]).length)})</button>`).join("");
   $("#dChips").querySelectorAll("button").forEach(b => b.onclick = () => { FILTRO = b.dataset.f; pintarTabla(); });
   const us = [...new Set(D.usuarios.map(u => u.u))], nom = Object.fromEntries(D.usuarios.map(u => [u.u, u.nombre]));
-  const conFinal = D.stock && D.corte && D.corte.conExist;
-  $("#dHead").innerHTML = `<tr><th>Producto</th><th class="hide-m">Código</th>${D.stock ? `<th class="n">Sistema</th>${conFinal ? `<th class="n">Final</th>` : ""}` : ""}<th class="n">Contado</th>${D.stock ? `<th class="n">Dif.</th><th class="n hide-m">Valor</th><th>Estado</th>` : ""}${us.length > 1 ? us.map(u => `<th class="n hide-m">${esc(nom[u])}</th>`).join("") : ""}</tr>`;
+  const conFinal = D.stock && D.corte && D.corte.conExist, mov = conFinal && D.corte.mov;
+  $("#dHead").innerHTML = `<tr><th>Producto</th><th class="hide-m">Código</th>${D.stock ? `<th class="n">Sistema</th>${mov ? `<th class="n" title="Solo lo vendido antes de contar el producto">Vend.</th><th class="n" title="Saldo a la hora en que se contó">Teórico</th>` : conFinal ? `<th class="n">Final</th>` : ""}` : ""}<th class="n">Contado</th>${D.stock ? `<th class="n">Dif.</th><th class="n hide-m">Valor</th><th>Estado</th>` : ""}${us.length > 1 ? us.map(u => `<th class="n hide-m">${esc(nom[u])}</th>`).join("") : ""}</tr>`;
   const v = filasVista(), LIM = 1500;
   $("#dInfo").textContent = `${fmt(v.length)} productos${v.length > LIM ? ` (se muestran ${LIM}; usa el buscador o descarga el Excel)` : ""}`;
   $("#dBody").innerHTML = v.slice(0, LIM).map(x => `<tr><td>${esc(x.desc)}</td><td class="hide-m mut">${esc(x.bc || x.cod)}${x.cod && x.cod !== x.bc ? "<br>" + esc(x.cod) : ""}</td>
-    ${D.stock ? `<td class="n">${fmt(x.stock)}</td>${conFinal ? `<td class="n">${fmt(x.final)}</td>` : ""}` : ""}<td class="n"><b>${fmt(x.contado)}</b></td>
+    ${D.stock ? `<td class="n">${fmt(x.stock)}</td>${mov ? `<td class="n">${x.vend ? fmt(x.vend) : ""}</td><td class="n">${x.teo || ""}</td>` : conFinal ? `<td class="n">${fmt(x.final)}</td>` : ""}` : ""}<td class="n"><b>${fmt(x.contado)}</b></td>
     ${D.stock ? `<td class="n ${x.dif < 0 ? "neg" : x.dif > 0 ? "pos" : ""}">${x.dif ? (x.dif > 0 ? "+" : "") + fmt(x.dif) : x.est === "OK" ? "0" : "—"}</td><td class="n hide-m">${x.valor != null ? usd(x.valor) : ""}</td><td><span class="tag ${ESTADO[x.est][1]}">${ESTADO[x.est][0]}</span></td>` : ""}
     ${us.length > 1 ? us.map(u => `<td class="n hide-m">${x.por[u] != null ? fmt(x.por[u]) : ""}</td>`).join("") : ""}</tr>`).join("") || `<tr><td colspan="9" class="mut">Sin productos en este filtro.</td></tr>`;
 }
@@ -427,10 +429,10 @@ $("#dBorrar").onclick = async () => {
 function cargarXLSX() { return window.XLSX ? Promise.resolve() : new Promise((res, rej) => { const s = document.createElement("script"); s.src = "../lib/xlsx.bundle.js"; s.onload = res; s.onerror = () => rej(new Error("No se pudo cargar la librería de Excel")); document.head.appendChild(s); }); }
 $("#dExcel").onclick = async () => {
   try { await cargarXLSX(); } catch (e) { return toast(e.message); }
-  const us = [...new Set(D.usuarios.map(u => u.u))], nom = Object.fromEntries(D.usuarios.map(u => [u.u, u.nombre])), conFinal = D.stock && D.corte && D.corte.conExist;
-  const head = ["Código", "Código de barras", "Descripción", ...(D.stock ? ["Existencia sistema", ...(conFinal ? ["Existencia final"] : []), "Costo"] : []), "Contado",
+  const us = [...new Set(D.usuarios.map(u => u.u))], nom = Object.fromEntries(D.usuarios.map(u => [u.u, u.nombre])), conFinal = D.stock && D.corte && D.corte.conExist, mov = conFinal && D.corte.mov;
+  const head = ["Código", "Código de barras", "Descripción", ...(D.stock ? ["Existencia sistema", ...(mov ? ["Vendido que afecta", "Teórico al contar"] : conFinal ? ["Existencia final"] : []), "Costo"] : []), "Contado",
     ...(D.stock ? ["Diferencia", "Valor diferencia", "Estado"] : []), "Primera lectura", "Última lectura", ...us.map(u => "Contado por " + nom[u])];
-  const filas = D.filas.filter(x => x.est !== "SIN_EXISTENCIA").map(x => [x.cod, x.bc, x.desc, ...(D.stock ? [x.stock, ...(conFinal ? [x.final] : []), x.costo] : []), x.contado ?? "",
+  const filas = D.filas.filter(x => x.est !== "SIN_EXISTENCIA").map(x => [x.cod, x.bc, x.desc, ...(D.stock ? [x.stock, ...(mov ? [x.vend || "", x.teo || ""] : conFinal ? [x.final] : []), x.costo] : []), x.contado ?? "",
     ...(D.stock ? [x.dif ?? "", x.valor ?? "", ESTADO[x.est][0]] : []), x.t1 ? new Date(x.t1) : "", x.t2 ? new Date(x.t2) : "", ...us.map(u => x.por[u] ?? "")]);
   const X = window.XLSX, wb = X.utils.book_new(), ws = X.utils.aoa_to_sheet([head, ...filas], {cellDates: true});
   ws["!cols"] = head.map((h, i) => ({wch: i === 2 ? 46 : Math.max(11, h.length + 2)}));
