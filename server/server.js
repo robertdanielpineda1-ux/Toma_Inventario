@@ -448,7 +448,9 @@ api.get("/tomas/:id/consolidado", auth, need("equipo"), (req, res) => {
     for (const k in movs) movs[k].sort((a, b) => a.t - b.t); }
   const filas = db.prepare("SELECT c.u, c.device, c.data, c.lect, c.prod, c.unidades, c.act, COALESCE(us.nombre, c.u) nombre FROM conteos c LEFT JOIN users us ON us.u = c.u WHERE c.toma = ?").all(t.id);
   const contado = {}, por = {}, raw = {}, t1 = {}, t2 = {};
+  const recuentos = {};   // recuentos de auditoría de todos los teléfonos (el más reciente por producto)
   const usuarios = filas.map(f => { const cnt = J(f.data) || { conteo: {}, log: [] };
+    for (const [k, r] of Object.entries(cnt.recuento || {})) if (r && (!recuentos[k] || r.t > recuentos[k].t)) recuentos[k] = r;
     for (const k in cnt.conteo) { const q = Number(cnt.conteo[k]) || 0; contado[k] = r3((contado[k] || 0) + q); (por[k] = por[k] || {})[f.u] = r3((por[k][f.u] || 0) + q); }
     Object.assign(raw, cnt.raw || {});
     for (const l of cnt.log) { if (!(l.k in t1) || l.t < t1[l.k]) t1[l.k] = l.t; if (!(l.k in t2) || l.t > t2[l.k]) t2[l.k] = l.t; }
@@ -469,7 +471,8 @@ api.get("/tomas/:id/consolidado", auth, need("equipo"), (req, res) => {
     } else if (dif && ult && ult.exist) x.final = it ? (k in ult.exist ? ult.exist[k] : it.stock) : 0;
     out.push(x);
   }
-  res.json({ toma: tomaPublica(req, t), stock, dif, corte: ult ? { t: ult.t, archivo: ult.archivo, conExist: !!ult.exist || ult.tipoRep === "mov", mov: ult.tipoRep === "mov", hasta: ult.hasta || null } : null, usuarios, filas: out });
+  const ma = metaDe(t).auditoria, aud = ma && ma.items && stock ? { ...ma, recuentos: Object.fromEntries(Object.entries(recuentos).filter(([, r]) => r.aud === ma.id)) } : null;
+  res.json({ toma: tomaPublica(req, t), auditoria: aud, stock, dif, corte: ult ? { t: ult.t, archivo: ult.archivo, conExist: !!ult.exist || ult.tipoRep === "mov", mov: ult.tipoRep === "mov", hasta: ult.hasta || null } : null, usuarios, filas: out });
 });
 
 /* ---------- Archivos: PWA en "/", panel en "/admin" ---------- */

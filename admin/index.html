@@ -114,6 +114,13 @@ select#nSede{width:100%}
       <div class="grid" id="dKpis" style="margin-top:14px"></div>
       <div class="mut" id="dNota" style="margin-top:10px"></div>
     </div>
+    <div class="card" id="dAudCard" hidden>
+      <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🔎 Corte de auditoría</h2><button class="btn sm" id="dAudXls">⬇ Excel auditoría</button></div>
+      <div class="mut" id="dAudInfo" style="margin:6px 0"></div>
+      <div class="grid" id="dAudKpis"></div>
+      <div class="chips" id="dAudChips"></div>
+      <div class="tw"><table><thead><tr><th>Producto</th><th class="hide-m">Código</th><th class="n">Teórico inicial</th><th class="n">Contado</th><th class="n">Dif. conteo</th><th class="n">Recuento</th><th class="n">Dif. recuento</th><th class="n hide-m">Dif. $</th><th>Resultado</th><th class="hide-m">Recontó</th></tr></thead><tbody id="dAudBody"></tbody></table></div>
+    </div>
     <div class="card">
       <h2>Quién está contando</h2>
       <div class="tw" style="max-height:none"><table><thead><tr><th>Persona</th><th class="hide-m">Teléfono</th><th class="n">Lecturas</th><th class="n">Productos</th><th class="n">Unidades</th><th>Última subida</th><th></th></tr></thead><tbody id="dUsr"></tbody></table></div>
@@ -390,7 +397,41 @@ async function cargarToma(silencioso) {
     if (!confirm(`¿Descartar el conteo de ${b.dataset.u} (teléfono ${b.dataset.d.slice(0, 8)})? Si ese teléfono sigue con datos, lo volverá a subir al sincronizar.`)) return;
     try { await api(`tomas/${encodeURIComponent(TOMA_ID)}/conteos/${encodeURIComponent(b.dataset.u)}/${encodeURIComponent(b.dataset.d)}`, {method: "DELETE"}); cargarToma(); } catch (e) { toast(e.message); } });
   pintarTabla();
+  pintarAuditoria();
 }
+// Corte de auditoría: qué códigos se trabajaron y qué resultado dio cada uno
+let AUDF = "HECHO";
+const estAud = (i, r) => !r ? ["Pendiente", "warn", "PEND"] : r3(r.q) === r3(i.contado) ? ["Confirma el conteo", "ok", "CONF"] : [`Corregido (antes ${fmt(i.contado)})`, "bad", "CORR"];
+function pintarAuditoria() {
+  const a = D.auditoria; $("#dAudCard").hidden = !a; if (!a) return;
+  const R = a.recuentos || {}, it = a.items, hechos = it.filter(i => R[i.k]), corr = it.filter(i => estAud(i, R[i.k])[2] === "CORR");
+  const dAntes = it.reduce((s, i) => s + Math.abs(i.valor || 0), 0), dDesp = it.reduce((s, i) => s + Math.abs(R[i.k] && i.costo != null ? (R[i.k].q - i.s0) * i.costo : (i.valor || 0)), 0);
+  $("#dAudInfo").innerHTML = `Generado el ${fh(a.t)} por <b>${esc(a.por || "")}</b> · umbral ≥ ${usd(a.umbV)} o ≥ ${fmt(a.umbU)} und · teórico inicial = Reporte de Inventario de las ${fh(a.inv && a.inv.t)} (sin descontar ventas).`;
+  $("#dAudKpis").innerHTML = [["Productos en el corte", fmt(it.length)], ["Trabajados (recontados)", `${hechos.length} de ${it.length}`, hechos.length === it.length ? "ok" : "warn"],
+    ["Confirman el conteo", fmt(hechos.length - corr.length), "ok"], ["Corregidos en el recuento", fmt(corr.length), corr.length ? "bad" : ""],
+    ["Diferencia del corte", usd(dAntes)], ["Diferencia tras el recuento", usd(dDesp), dDesp < dAntes ? "ok" : ""]].map(([t, v, c]) => `<div class="kpi ${c || ""}"><b>${v}</b><span>${t}</span></div>`).join("");
+  const F = {HECHO: i => !!R[i.k], CORR: i => estAud(i, R[i.k])[2] === "CORR", CONF: i => estAud(i, R[i.k])[2] === "CONF", PEND: i => !R[i.k], ALL: () => true};
+  $("#dAudChips").innerHTML = [["HECHO", "Trabajados"], ["CORR", "Corregidos"], ["CONF", "Confirman"], ["PEND", "Pendientes"], ["ALL", "Todos"]]
+    .map(([k, l]) => `<button data-f="${k}" class="${AUDF === k ? "on" : ""}">${l} (${it.filter(F[k]).length})</button>`).join("");
+  $("#dAudChips").querySelectorAll("button").forEach(b => b.onclick = () => { AUDF = b.dataset.f; pintarAuditoria(); });
+  const l = it.filter(F[AUDF]);
+  $("#dAudBody").innerHTML = l.length ? l.map(i => { const r = R[i.k], e = estAud(i, r), dR = r ? r3(r.q - i.s0) : null, sg = n => n == null ? "" : (n > 0 ? "+" : "") + fmt(n);
+    return `<tr><td>${esc(i.desc)}</td><td class="hide-m mut">${esc(i.bc || i.cod)}</td><td class="n">${fmt(i.s0)}</td><td class="n">${fmt(i.contado)}</td>
+      <td class="n ${i.dif < 0 ? "neg" : "pos"}">${sg(i.dif)}</td><td class="n"><b>${r ? fmt(r.q) : "—"}</b></td><td class="n ${dR < 0 ? "neg" : dR > 0 ? "pos" : ""}">${sg(dR)}</td>
+      <td class="n hide-m">${r && i.costo != null ? usd(dR * i.costo) : i.valor != null ? usd(i.valor) : ""}</td><td><span class="tag ${e[1]}">${e[0]}</span></td>
+      <td class="hide-m mut">${r ? `${esc(r.nombre || r.us || "")} · ${fh(r.t)}${r.n ? ` · ${r.n} lect.` : ""}` : ""}</td></tr>`; }).join("")
+    : `<tr><td colspan="10" class="mut">Sin productos en este filtro.</td></tr>`;
+}
+$("#dAudXls").onclick = async () => {
+  try { await cargarXLSX(); } catch (e) { return toast(e.message); }
+  const a = D.auditoria, R = a.recuentos || {}, X = window.XLSX;
+  const head = ["Código", "Código de barras", "Descripción", "Teórico inicial", "Contado", "Dif. conteo", "Costo", "Dif. conteo $", "Recuento", "Dif. recuento", "Dif. recuento $", "Resultado", "Recontó", "Hora recuento", "Lecturas"];
+  const filas = a.items.map(i => { const r = R[i.k], d = r ? r3(r.q - i.s0) : null;
+    return [i.cod, i.bc, i.desc, i.s0, i.contado, i.dif, i.costo, i.valor, r ? r.q : "", d ?? "", r && i.costo != null ? r3(d * i.costo) : "", estAud(i, r)[0], r ? (r.nombre || r.us) : "", r ? new Date(r.t) : "", r && r.n || ""]; });
+  const ws = X.utils.aoa_to_sheet([head, ...filas], {cellDates: true}); ws["!cols"] = head.map((h, n) => ({wch: n === 2 ? 44 : Math.max(11, h.length + 2)}));
+  const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, "Auditoría");
+  const t = D.toma; X.writeFile(wb, `Auditoria_${t.sede.split("·")[0].trim().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "_")}_${t.fecha}.xlsx`);
+};
 const CHIPS = () => D && D.stock ? [["CONT", "Contados"], ["DIF", "Con diferencia"], ["FALTANTE", "Faltantes"], ["SOBRANTE", "Sobrantes"], ["NO_CONTADO", "No contados"], ["OK", "Cuadran"], ["ALL", "Todos"]]
   : [["CONT", "Contados"], ["NO_CONTADO", "No contados"], ["ALL", "Todos"]];
 const FILTROS = {CONT: x => x.contado != null, DIF: x => ["FALTANTE", "SOBRANTE", "NOINV"].includes(x.est), FALTANTE: x => x.est === "FALTANTE", SOBRANTE: x => x.est === "SOBRANTE" || x.est === "NOINV",

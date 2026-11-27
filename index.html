@@ -266,6 +266,15 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
     <div class="mut" style="margin-top:6px" id="qtyHelp"></div>
   </div>
 
+  <div class="card" id="audScan" hidden style="border:2px solid #a86500">
+    <div class="row" style="align-items:flex-start"><div><b style="color:#a86500;font-size:16px">🔎 Modo auditoría</b><div class="mut" id="audScanInfo"></div></div>
+      <button class="btn sec" id="btnAudSalir" style="flex:0 0 auto;padding:8px 12px">Salir</button></div>
+    <div id="audScanUlt" class="status" style="margin-top:10px">Escanea un producto del corte.</div>
+    <div class="grid2"><button class="btn sec" id="btnAudUndo">↶ Deshacer</button><button class="btn sec" id="btnAudLista">📋 Lista del corte</button></div>
+    <h3 style="margin:12px 0 4px;font-size:14px">Lecturas de auditoría</h3>
+    <ul class="list" id="audScanLog"></ul>
+  </div>
+
   <div class="card">
     <input type="search" id="sNombre" placeholder="🔎 Buscar por nombre o código (ej. omega)" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="mut" id="sNomInfo" style="margin-top:6px"></div>
@@ -366,8 +375,15 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
     </div>
     <div id="audEst" class="status" hidden></div>
     <div id="audBtns" hidden>
-      <button class="btn block" id="btnAudRec" style="margin-bottom:8px">📋 Recontar códigos del corte</button>
+      <button class="btn block" id="btnAudScan" style="margin-bottom:8px;background:#a86500">📷 Escanear auditoría (solo códigos del corte)</button>
+      <button class="btn sec block" id="btnAudRec" style="margin-bottom:8px">📋 Recontar escribiendo la cantidad</button>
       <div class="grid2"><button class="btn sec" id="btnAudXls">⬇ Excel auditoría</button><button class="btn sec" id="btnAudPdf">📄 PDF auditoría</button></div>
+    </div>
+    <div id="audResBox" hidden>
+      <h3 style="margin:14px 0 4px">Resultado de la auditoría</h3>
+      <div class="chips" id="audResChips"></div>
+      <table class="tbl"><thead><tr><th>Producto</th><th>Teórico inicial</th><th>Contado</th><th>Recuento</th><th>Dif.</th></tr></thead><tbody id="audResBody"></tbody></table>
+      <div class="mut" style="margin-top:6px">Dif. = recuento − teórico inicial (si aún no se recontó, contado − teórico inicial).</div>
     </div>
   </div>
 
@@ -429,7 +445,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
     <div class="chips" id="audChips" style="margin-top:8px"></div>
     <ul class="list" id="audList"></ul>
   </div>
-  <div class="ft"><button class="btn" id="audCerrar">Listo</button></div>
+  <div class="ft"><button class="btn sec" id="audAEscanear" style="background:#fff4e0;color:#a86500">📷 Escanear</button><button class="btn" id="audCerrar">Listo</button></div>
 </dialog>
 
 <!-- Código leído que no está en el Reporte de Inventario -->
@@ -527,7 +543,7 @@ dialog .ft{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--br)
 <script src="lib/xlsx.bundle.js" defer></script>
 <script>
 "use strict";
-const VERSION = "15.6";
+const VERSION = "15.7";
 // Modo servidor: la app se sirve desde el servidor central (config.js define TI_API). Sin él funciona como antes, solo local.
 try { if (typeof window.TI_API === "string") localStorage.setItem("TI_API", window.TI_API); else window.TI_API = localStorage.getItem("TI_API") || undefined; } catch (e) {}
 const SRV = typeof window.TI_API === "string" && location.protocol.startsWith("http");
@@ -964,6 +980,7 @@ scanIn.addEventListener("keydown", e => {
 });
 function procesarEntrada(v, origen) {
   v = limpiarCodigo(v); if (!v || $("#dlgQty").open || $("#dlgNoEnc").open) return;
+  if (AUDMODO && AUD()) return procesarAuditoria(v, origen || (scanIn.getAttribute("inputmode") === "none" ? "lector" : "teclado"));
   if (bloqueada()) return;
   const falta = listoParaContar(); if (falta) return toast(falta);
   const k = claveDe(v), o = origen || (scanIn.getAttribute("inputmode") === "none" ? "lector" : "teclado");
@@ -1040,12 +1057,12 @@ function contar(k, bc, origen, despues) {
   registrarClave(k, bc, qty(), origen); if (despues) despues();
 }
 let qCtx = null;
-function abrirCantidad(k, bc, origen, despues) {
-  if (bloqueada()) return;
-  const it = item(k), cur = S.cnt.conteo[k] || 0;
-  qCtx = {k, bc, origen, despues};
-  $("#qDesc").textContent = it ? (it.desc || it.cod) : "Sin existencia en sistema (se marcará sobrante)";
-  $("#qInfo").textContent = `${it ? (it.bc || it.cod) : bc} · Contado hasta ahora: ${fmt(cur)}`;
+function abrirCantidad(k, bc, origen, despues, aud) {
+  if (!aud && bloqueada()) return;
+  const it = item(k), cur = aud ? recuentoPropio(k) : (S.cnt.conteo[k] || 0);
+  qCtx = {k, bc, origen, despues, aud};
+  $("#qDesc").textContent = (aud ? "🔎 Recuento de auditoría · " : "") + (it ? (it.desc || it.cod) : aud ? (itemAud(k) || {}).desc || bc : "Sin existencia en sistema (se marcará sobrante)");
+  $("#qInfo").textContent = `${it ? (it.bc || it.cod) : bc} · ${aud ? "Recontado" : "Contado"} hasta ahora: ${fmt(cur)}`;
   $("#qVal").value = ""; $("#dlgQty").showModal(); setTimeout(() => $("#qVal").focus(), 60);
 }
 function cerrarCantidad() { $("#dlgQty").close(); qCtx = null; setTimeout(() => scanIn.focus(), 80); }
@@ -1053,6 +1070,7 @@ function aplicarCantidad(fijar) {
   if (!qCtx) return;
   const txt = $("#qVal").value.trim(), v = parseNum(txt);
   if (txt === "" || v < 0) return toast("Escribe la cantidad");
+  if (qCtx.aud) { const {k, origen} = qCtx; if (!fijar && v === 0) return toast("Para sumar, la cantidad debe ser mayor que 0"); cerrarCantidad(); sumarRecuento(k, v, origen + " (manual)", fijar); return; }
   const {k, bc, origen, despues} = qCtx, cur = S.cnt.conteo[k] || 0, ya = k in S.cnt.conteo;
   const q = fijar ? r3(v - cur) : v;
   if (!fijar && v === 0) return toast("Para sumar, la cantidad debe ser mayor que 0. Usa \"Fijar total\" para dejarlo en 0.");
@@ -1143,6 +1161,7 @@ function feedback(ok) {
   setTimeout(() => l.classList.remove("flash-ok", "flash-bad"), 700);
 }
 function renderScan() {
+  if (pintarModoAud()) return;
   const c = S.cnt, k = c.last, falta = cerrada() ? `🔒 Toma cerrada el ${fechaHora(S.meta.cerrada.t)}: solo consulta. Para seguir contando, reábrela con contraseña desde Cierre.` : listoParaContar();
   $("#scanWarn").hidden = !falta; $("#scanWarn").textContent = falta; $("#scanWarn").className = cerrada() ? "lockbanner" : "warnbox";
   if (k) { const it = item(k);
@@ -1217,7 +1236,9 @@ function busquedaViva(input, info, lista, alElegir) {
 }
 const buscarEscanear = busquedaViva($("#sNombre"), $("#sNomInfo"), $("#sNomList"), k => {
   const falta = listoParaContar(); if (falta) return toast(falta);
-  const it = item(k); abrirCantidad(k, it ? (it.bc || it.cod) : k.slice(1), "búsqueda", () => buscarEscanear());
+  const it = item(k);
+  if (AUDMODO && AUD()) { if (!itemAud(k)) { feedback(false); return toast("⛔ Ese producto no está en el corte de auditoría"); } return abrirCantidad(k, it ? (it.bc || it.cod) : k.slice(1), "búsqueda", () => buscarEscanear(), true); }
+  abrirCantidad(k, it ? (it.bc || it.cod) : k.slice(1), "búsqueda", () => buscarEscanear());
 });
 function mostrarFicha(k) {
   const x = calcular().find(z => z.k === k);
@@ -2301,6 +2322,21 @@ function renderAuditoria() {
   $("#audEst").innerHTML = `Corte del ${fechaHora(a.t)} por ${esc(a.por || "")} · <b>${n} productos</b> (≥ $ ${fmt(a.umbV)} o ≥ ${fmt(a.umbU)} und)<br>
     Recontados: <b>${hechos} de ${n}</b>${hechos ? ` · ${hechos - corr} confirman el conteo · <b style="color:var(--bad)">${corr} corregidos</b>` : ""}`;
   $("#btnAudXls").hidden = $("#btnAudPdf").hidden = !verDif() || !puede("exportar");
+  pintarResultadosAud(rec);
+}
+let audResF = "HECHO";
+function pintarResultadosAud(rec) {
+  const a = AUD(), ver = verDif() && verStock() && a && a.items.some(i => i.s0 != null);
+  $("#audResBox").hidden = !ver; if (!ver) return;
+  const F = {HECHO: i => !!rec[i.k], CORR: i => estadoAud(i, rec[i.k]).cod === "CORR", CONF: i => estadoAud(i, rec[i.k]).cod === "CONF", PEND: i => !rec[i.k], ALL: () => true};
+  $("#audResChips").innerHTML = [["HECHO", "Trabajados"], ["CORR", "Corregidos"], ["CONF", "Confirman"], ["PEND", "Pendientes"], ["ALL", "Todos"]]
+    .map(([k, l]) => `<button data-f="${k}" class="${audResF === k ? "on" : ""}">${l} (${a.items.filter(F[k]).length})</button>`).join("");
+  $("#audResChips").querySelectorAll("button").forEach(b => b.onclick = () => { audResF = b.dataset.f; pintarResultadosAud(recuentosAud()); });
+  const l = a.items.filter(F[audResF]);
+  $("#audResBody").innerHTML = l.length ? l.map(i => { const r = rec[i.k], e = estadoAud(i, r), d = r ? r3(r.q - i.s0) : i.dif;
+    return `<tr><td><div>${esc(i.desc)}</div><small>${esc(i.bc || i.cod)}</small><br><span class="est ${e.cod === "CORR" ? "FALTANTE" : e.cod === "PEND" ? "NO_CONTADO" : "OK"}">${esc(e.txt)}</span>${r ? `<br><small>${esc(r.nombre || r.us || "")} · ${hora(r.t)}${r.n ? ` · ${r.n} lect.` : ""}</small>` : ""}</td>
+      <td>${fmt(i.s0)}</td><td>${fmt(i.contado)}</td><td><b>${r ? fmt(r.q) : "—"}</b></td><td class="${d < 0 ? "neg" : d > 0 ? "pos" : "zero"}">${d > 0 ? "+" : ""}${fmt(d)}</td></tr>`; }).join("")
+    : `<tr><td colspan="5" class="mut">Sin productos en este filtro.</td></tr>`;
 }
 $("#btnAudGen").onclick = async () => {
   if (!puedeGenerarAud()) return toast("Tu usuario no puede generar el corte de auditoría");
@@ -2340,11 +2376,79 @@ function pintarRecuento() {
 function guardarRecuento(k) {
   const a = AUD(), inp = $(`#audList input[data-k="${CSS.escape(k)}"]`), txt = inp ? inp.value.trim() : "";
   if (txt === "" || parseNum(txt) < 0) return toast("Escribe la cantidad recontada");
+  const antes = recuentoPropio(k);
   (S.cnt.recuento = S.cnt.recuento || {})[k] = {q: parseNum(txt), t: Date.now(), us: USER ? USER.u : "", nombre: USER ? USER.nombre : (S.meta.resp || ""), aud: a.id};
+  (S.cnt.recLog = S.cnt.recLog || []).push({k, q: r3(parseNum(txt) - antes), t: Date.now(), aud: a.id, o: "recuento escrito"}); S.cnt.audUlt = k;
   CNCACHE = null; saveCount(); feedback(true); pintarRecuento(); renderAuditoria();
   const sig = $("#audList input[data-k]"); if (sig) setTimeout(() => sig.focus(), 60);
 }
 $("#btnAudRec").onclick = abrirRecuento;
+/* Modo auditoría en Escanear: solo se aceptan los códigos del corte; cada lectura suma al recuento del gerente.
+   Funciona con la toma cerrada (no toca el conteo original). */
+let AUDMODO = false;
+const itemAud = k => { const a = AUD(); return a ? a.items.find(i => i.k === k) || null : null; };
+const recuentoPropio = k => { const a = AUD(), r = (S.cnt.recuento || {})[k]; return a && r && r.aud === a.id ? r.q : 0; };
+function entrarModoAud() {
+  if (!puedeRecontarAud()) return toast("Tu usuario no puede recontar el corte de auditoría");
+  if ($("#dlgAud").open) $("#dlgAud").close();
+  AUDMODO = true; irA("escanear"); toast(`🔎 Modo auditoría: solo se aceptan los ${AUD().items.length} códigos del corte`);
+}
+function salirModoAud() { AUDMODO = false; renderScan(); renderAuditoria(); toast("Saliste del modo auditoría"); }
+function procesarAuditoria(v, origen) {
+  const k = claveDe(v) || "?" + normBC(v), it = itemAud(k);
+  if (!it) {
+    feedback(false);
+    const p = item(k);
+    $("#audScanUlt").className = "status"; $("#audScanUlt").style.borderColor = "var(--bad)"; $("#audScanUlt").style.background = "#fdeded";
+    $("#audScanUlt").innerHTML = `⛔ <b>No está en el corte de auditoría</b><br>${esc(p ? (p.desc || p.cod) : "Código " + v)}<br><small>No se contó. Solo se aceptan los productos del corte.</small>`;
+    return;
+  }
+  if (modoManual()) return abrirCantidad(k, v, origen, null, true);
+  sumarRecuento(k, qty(), origen);
+}
+function sumarRecuento(k, q, origen, fijar) {
+  const a = AUD(), c = S.cnt, base = recuentoPropio(k), prev = (c.recuento || {})[k];
+  const nuevo = fijar ? r3(q) : r3(base + q);
+  (c.recuento = c.recuento || {})[k] = {q: nuevo, t: Date.now(), us: USER ? USER.u : "", nombre: USER ? USER.nombre : (S.meta.resp || ""), aud: a.id,
+    n: (prev && prev.aud === a.id ? prev.n || 0 : 0) + 1};
+  (c.recLog = c.recLog || []).push({k, q: r3(nuevo - base), t: Date.now(), aud: a.id, o: origen || ""});
+  if (c.recLog.length > 3000) c.recLog = c.recLog.slice(-3000);
+  c.audUlt = k; CNCACHE = null; saveCount(); feedback(true);
+  if (!modoManual() && !$("#qLock").checked) $("#qty").value = 1;
+  renderScan();
+}
+function deshacerAud() {
+  const a = AUD(), c = S.cnt, l = c.recLog || [];
+  let i = l.length - 1; while (i >= 0 && l[i].aud !== a.id) i--;
+  if (i < 0) return toast("Nada que deshacer");
+  const x = l.splice(i, 1)[0], r = c.recuento[x.k];
+  if (r) { const q = r3(r.q - x.q); if (!l.some(y => y.aud === a.id && y.k === x.k) && q === 0) delete c.recuento[x.k]; else { r.q = q; r.t = Date.now(); r.n = Math.max(0, (r.n || 1) - 1); } }
+  CNCACHE = null; saveCount(); renderScan(); toast("Lectura de auditoría deshecha");
+}
+// Pinta Escanear en modo auditoría; devuelve true si el modo está activo
+function pintarModoAud() {
+  const activo = AUDMODO && !!AUD() && puedeRecontarAud();
+  if (AUDMODO && !activo) AUDMODO = false;
+  $("#audScan").hidden = !activo;
+  ["#last", "#kProd", "#logList"].forEach(id => { const cd = $(id).closest(".card"); if (cd) cd.hidden = activo; });
+  if (!activo) return false;
+  $("#scanWarn").hidden = true;
+  const a = AUD(), rec = recuentosAud(), hechos = a.items.filter(i => rec[i.k]).length, c = S.cnt, k = c.audUlt;
+  $("#audScanInfo").innerHTML = `Solo se aceptan los <b>${a.items.length} códigos del corte</b>. Cada lectura suma al recuento.<br>Recontados: <b>${hechos} de ${a.items.length}</b>`;
+  const it = k && itemAud(k);
+  if (it) { $("#audScanUlt").className = "status on"; $("#audScanUlt").style.cssText = "margin-top:10px";
+    $("#audScanUlt").innerHTML = `✅ <b>${esc(it.desc)}</b><br><small>${esc(it.bc || it.cod)}</small><div style="margin-top:4px">Recuento: <b style="font-size:22px">${fmt(recuentoPropio(k))}</b></div>`; }
+  const log = (c.recLog || []).filter(x => x.aud === a.id).slice(-20).reverse();
+  $("#audScanLog").innerHTML = log.length ? log.map(x => { const i = itemAud(x.k) || {};
+    return `<li><div class="g"><div>${esc(i.desc || x.k)}</div><small>${hora(x.t)} · ${esc(i.bc || i.cod || "")} · ${esc(x.o)}</small></div><span class="q">${x.q >= 0 ? "+" : ""}${fmt(x.q)}</span></li>`; }).join("")
+    : `<li class="mut">Aún no hay lecturas de auditoría.</li>`;
+  return true;
+}
+$("#btnAudScan").onclick = entrarModoAud;
+$("#audAEscanear").onclick = entrarModoAud;
+$("#btnAudSalir").onclick = salirModoAud;
+$("#btnAudUndo").onclick = deshacerAud;
+$("#btnAudLista").onclick = abrirRecuento;
 $("#audBuscar").addEventListener("input", pintarRecuento);
 $("#audBuscar").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); pintarRecuento(); const i = $("#audList input[data-k]"); if (i) i.focus(); } });
 $("#audCerrar").onclick = () => { $("#dlgAud").close(); renderAuditoria(); };

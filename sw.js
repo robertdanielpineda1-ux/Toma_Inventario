@@ -1,5 +1,5 @@
 // Service worker: deja la app funcionando sin internet
-const CACHE = "inventario-v29";
+const CACHE = "inventario-v30";
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.json", "./icon-192.png", "./icon-512.png",
   "./lib/xlsx.bundle.js", "./lib/jspdf.umd.min.js", "./lib/jspdf.plugin.autotable.min.js", "./lib/zxing-reader.js", "./lib/zxing_reader.wasm"];
 self.addEventListener("install", e => {
